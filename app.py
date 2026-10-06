@@ -18,8 +18,6 @@ load_dotenv()
 
 app = Flask(__name__)
 
-DB_PATH = os.getenv("DB_PATH", "flights.db")
-
 
 # ============================================================
 # GLOBAL AIRPORT DATABASE
@@ -246,15 +244,7 @@ def get_nearby_airports(
 # DATABASE CONNECTION
 # ============================================================
 
-def db():
-    """
-    Create a SQLite database connection.
-    """
 
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-
-    return conn
 
 # ============================================================
 # DATABASE INITIALIZATION
