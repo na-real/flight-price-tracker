@@ -5,7 +5,7 @@ import csv
 import os
 import sqlite3
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
@@ -633,7 +633,7 @@ def track():
                 return_date,
                 target_price,
                 email,
-                datetime.utcnow().isoformat()
+                datetime.now(timezone.utc).isoformat()
             )
         )
 
