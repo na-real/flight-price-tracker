@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>SkyTrack — Flight Price Tracker</title>
+
+    <link rel="stylesheet"
+          href="/static/style.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+
+<body>
+
+<div class="app">
+
+
+    <!-- =====================================================
+         NAVBAR
+    ====================================================== -->
+
+    <nav class="navbar">
+
+        <div class="logo">
+            ✈️ <span>SkyTrack</span>
+        </div>
+
+
+        <div class="nav-links">
+
+            <a href="#search">
+                Search
+            </a>
+
+            <a href="#tracked-section">
+                My Flights
+            </a>
+
+        </div>
+
+    </nav>
+
+
+
+    <!-- =====================================================
+         HERO
+    ====================================================== -->
+
+    <section class="hero">
+
+        <div class="hero-text">
+
+
+            <div class="badge">
+
+                ✈️ SMART FLIGHT TRACKING
+
+            </div>
+
+
+            <h1>
+
+                Find the price.
+
+                <br>
+
+                <span>
+                    Track the drop.
+                </span>
+
+            </h1>
+
+
+            <p>
+
+                Search flights, compare nonstop and
+                connecting flights, track their prices
+                and get notified when the fare drops.
+
+            </p>
+
+
+        </div>
+
+    </section>
+
+
+
+    <!-- =====================================================
+         SEARCH CARD
+    ====================================================== -->
+
+    <section
+        class="search-card"
+        id="search"
+    >
+
+
+        <div class="section-title">
+
+            <div>
+
+                <h2>
+                    Search flights
+                </h2>
+
+
+                <p>
+                    Find the best available fares.
+                </p>
+
+            </div>
+
+        </div>
+
+
+
+        <!-- =================================================
+             SEARCH FORM
+        ================================================== -->
+
+        <form id="searchForm">
+
+
+            <div class="search-grid">
+
+
+                <!-- =========================================
+                     FROM
+                ========================================== -->
+
+                <label>
+
+                    <span>
+                        From
+                    </span>
+
+
+                    <div class="airport-input">
+
+                        <input
+                            id="departure"
+                            type="text"
+                            placeholder="City or airport"
+                            autocomplete="off"
+                            required
+                        >
+
+
+                        <div
+                            id="departureSuggestions"
+                            class="airport-suggestions"
+                        ></div>
+
+                    </div>
+
+
+                    <!-- NEARBY DEPARTURE -->
+
+                    <div class="nearby-option">
+
+                        <label>
+
+                            <input
+                                type="checkbox"
+                                id="nearbyDeparture"
+                            >
+
+                            <span>
+                                Include nearby airports
+                            </span>
+
+                        </label>
+
+                    </div>
+
+                </label>
+
+
+
+                <!-- =========================================
+                     ROUTE ARROW
+                ========================================== -->
+
+                <div class="route-arrow">
+
+                    →
+
+                </div>
+
+
+
+                <!-- =========================================
+                     TO
+                ========================================== -->
+
+                <label>
+
+                    <span>
+                        To
+                    </span>
+
+
+                    <div class="airport-input">
+
+                        <input
+                            id="arrival"
+                            type="text"
+                            placeholder="City or airport"
+                            autocomplete="off"
+                            required
+                        >
+
+
+                        <div
+                            id="arrivalSuggestions"
+                            class="airport-suggestions"
+                        ></div>
+
+                    </div>
+
+
+                    <!-- NEARBY ARRIVAL -->
+
+                    <div class="nearby-option">
+
+                        <label>
+
+                            <input
+                                type="checkbox"
+                                id="nearbyArrival"
+                            >
+
+                            <span>
+                                Include nearby airports
+                            </span>
+
+                        </label>
+
+                    </div>
+
+                </label>
+
+
+
+                <!-- =========================================
+                     DEPARTURE DATE
+                ========================================== -->
+
+                <label>
+
+                    <span>
+                        Departure
+                    </span>
+
+
+                    <input
+    id="outbound_date"
+    type="date"
+    required
+    min=""
+>
+
+                </label>
+
+
+
+                <!-- =========================================
+                     RETURN DATE
+                ========================================== -->
+
+                <label>
+
+                    <span>
+                        Return
+                    </span>
+
+
+                    <input
+    id="return_date"
+    type="date"
+    min=""
+>
+
+                </label>
+
+
+            </div>
+
+
+
+            <!-- =============================================
+                 SEARCH BUTTON
+            ============================================== -->
+
+            <button
+                type="submit"
+                class="primary-btn"
+            >
+
+                🔍 Search Flights
+
+            </button>
+
+
+        </form>
+
+
+
+        <!-- SEARCH STATUS -->
+
+        <p
+            id="status"
+            class="status"
+        ></p>
+
+
+    </section>
+
+
+
+    <!-- =====================================================
+         SEARCH RESULTS
+    ====================================================== -->
+
+    <!-- =====================================================
+     FLIGHT RESULTS
+====================================================== -->
+
+<section class="results-section">
+
+    <div class="results-header">
+
+        <div>
+
+            <div class="section-label">
+                FLIGHT RESULTS
+            </div>
+
+            <h2>
+                Available flights
+            </h2>
+
+            <p id="resultSummary">
+                Search to see available flights.
+            </p>
+
+        </div>
+
+    </div>
+
+
+    <!-- =================================================
+         FILTER BAR
+    ================================================== -->
+
+    <div
+        id="flightFilters"
+        class="flight-filters"
+        style="display: none;"
+    >
+
+        <!-- SORT -->
+
+        <div class="filter-group">
+
+            <label for="sortFlights">
+                Sort by
+            </label>
+
+            <select id="sortFlights">
+
+                <option value="cheapest">
+                    💰 Cheapest
+                </option>
+
+                <option value="fastest">
+                    ⚡ Fastest
+                </option>
+
+            </select>
+
+        </div>
+
+
+        <!-- STOPS -->
+
+        <div class="filter-group">
+
+            <label>
+                Stops
+            </label>
+
+            <div class="filter-options">
+
+                <label>
+                    <input
+                        type="checkbox"
+                        id="filterNonstop"
+                    >
+                    Non-stop
+                </label>
+
+                <label>
+                    <input
+                        type="checkbox"
+                        id="filterOneStop"
+                    >
+                    1 stop
+                </label>
+
+                <label>
+                    <input
+                        type="checkbox"
+                        id="filterTwoPlus"
+                    >
+                    2+ stops
+                </label>
+
+            </div>
+
+        </div>
+
+
+        <!-- MAX PRICE -->
+
+        <div class="filter-group">
+
+            <label for="maxPrice">
+                Maximum price
+            </label>
+
+            <input
+                id="maxPrice"
+                type="number"
+                min="0"
+                placeholder="₹ 25,000"
+            >
+
+        </div>
+        <!-- AIRLINES -->
+
+<div class="filter-group airline-filter-group">
+
+    <div class="airline-filter-title">
+        Airlines
+    </div>
+
+    <div
+        id="airlineFilters"
+        class="airline-filters"
+    ></div>
+
+</div>
+
+
+        <!-- RESET -->
+
+        <button
+            type="button"
+            id="resetFilters"
+            class="reset-filter-btn"
+        >
+
+            ↻ Reset
+
+        </button>
+
+    </div>
+
+
+    <!-- RESULTS -->
+
+    <div id="results"></div>
+
+</section>
+
+
+
+    <!-- =====================================================
+         PRICE TRACKING CARD
+    ====================================================== -->
+
+    <section class="track-card">
+
+
+        <div>
+
+
+            <div class="section-label">
+
+                🔔 PRICE ALERT
+
+            </div>
+
+
+            <h2>
+
+                Want us to watch this flight?
+
+            </h2>
+
+
+            <p>
+
+                Set a target price and we'll email you
+                when the fare reaches it.
+
+            </p>
+
+
+        </div>
+
+
+
+        <!-- =================================================
+             TRACK FORM
+        ================================================== -->
+
+        <form id="trackForm">
+
+
+            <div class="track-grid">
+
+
+                <!-- TARGET PRICE -->
+
+                <label>
+
+                    <span>
+                        Target price (₹)
+                    </span>
+
+
+                    <input
+                        id="target_price"
+                        type="number"
+                        min="1"
+                        placeholder="8000"
+                        required
+                    >
+
+                </label>
+
+
+
+                <!-- EMAIL -->
+
+                <label>
+
+                    <span>
+                        Email for alerts
+                    </span>
+
+
+                    <input
+                        id="email"
+                        type="email"
+                        placeholder="you@example.com"
+                        required
+                    >
+
+                </label>
+
+
+            </div>
+
+
+
+            <!-- TRACK BUTTON -->
+
+            <button
+                type="submit"
+                class="primary-btn"
+            >
+
+                🔔 Start Price Tracking
+
+            </button>
+
+
+        </form>
+
+
+
+        <!-- TRACKING STATUS -->
+
+        <p
+            id="trackStatus"
+            class="status"
+        ></p>
+
+
+    </section>
+
+
+
+    <!-- =====================================================
+         TRACKED FLIGHTS
+    ====================================================== -->
+
+    <section
+        class="tracked-section"
+        id="tracked-section"
+    >
+
+
+        <div class="section-title">
+
+
+            <div>
+
+
+                <div class="section-label">
+
+                    YOUR TRACKED FLIGHTS
+
+                </div>
+
+
+                <h2>
+
+                    Price watch
+
+                </h2>
+
+
+                <p>
+
+                    Keep an eye on your saved routes.
+
+                </p>
+
+
+            </div>
+
+
+        </div>
+
+
+
+        <!-- TRACKED FLIGHTS WILL BE INSERTED HERE -->
+
+        <div id="tracked">
+
+            Loading...
+
+        </div>
+
+
+    </section>
+
+
+
+</div>
+
+
+
+<!-- =========================================================
+     JAVASCRIPT
+========================================================== -->
+
+<script src="/static/app.js"></script>
+
+
+</body>
+
+</html>
