@@ -762,13 +762,13 @@ def history(tracked_id):
 # ============================================================
 # START APPLICATION
 # ============================================================
+# Initialize the database when the application starts.
+init_db()
+
 
 if __name__ == "__main__":
-
-    init_db()
-
     app.run(
-    host="0.0.0.0",
-    port=int(os.environ.get("PORT", 5000)),
-    debug=False
-)
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 5000)),
+        debug=False
+    )
