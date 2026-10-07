@@ -1,57 +1,82 @@
-# ✈️ Flight Price Tracker
+# ✈️ SkyTrack — Flight Price Tracker
 
-A Flask-based flight price tracker that searches Google Flights data, stores tracked routes, records price history, and sends email alerts when a new lowest price or target price is reached.
+A full-stack flight price tracking application built with Flask and JavaScript.
 
-## Features
+SkyTrack lets users search flights, compare prices, track specific routes, view price history, and receive email alerts when prices drop or reach a target price.
 
-- Flight search by IATA airport code
-- One-way and round-trip search
-- Price sorting
-- Track a route
-- Target price alerts
-- New-lowest-price alerts
-- SQLite price history
-- Scheduled checking with Render Cron
-- Safe API key handling with environment variables
+## ✨ Features
 
-## Local setup
+- ✈️ Search flights using airport codes
+- 🔄 One-way and round-trip searches
+- 🛫 Connecting flight and layover information
+- 📍 Nearby airport search
+- 💰 Sort and compare flight prices
+- 🔔 Track flights with target price alerts
+- 📉 New lowest-price alerts
+- 📊 Historical price charts
+- 📧 Email notifications
+- ⏰ Automated price checking with Render Cron
+- 🔐 Environment-based API key management
+- 🧪 Automated tests with pytest
+- ⚙️ GitHub Actions CI
 
-```bash
-python -m venv .venv
-```
+## 🛠️ Tech Stack
 
-Windows:
+### Backend
 
-```bash
-.venv\Scripts\activate
-```
+- Python
+- Flask
+- SQLite
+- SerpAPI
 
-Install:
+### Frontend
 
-```bash
-pip install -r requirements.txt
-```
+- HTML
+- CSS
+- JavaScript
+- Chart.js
 
-Copy `.env.example` to `.env` and add your API/email credentials.
+### Testing & Deployment
 
-Run:
+- pytest
+- GitHub Actions
+- Render
+- Render Cron
 
-```bash
-python app.py
-```
+## 📂 Project Structure
 
-Open `http://127.0.0.1:5000`.
-
-## Price checker
-
-Run manually:
-
-```bash
-python checker.py
-```
-
-In production, Render Cron runs this automatically every 6 hours.
-
-## Important
-
-Never commit `.env` or your API keys to GitHub.
+```text
+flight-price-tracker/
+│
+├── app.py
+├── checker.py
+├── db.py
+├── validation.py
+├── requirements.txt
+├── render.yaml
+├── README.md
+│
+├── data/
+│   └── airports.csv
+│
+├── services/
+│   ├── airports.py
+│   └── flight_api.py
+│
+├── static/
+│   ├── app.js
+│   └── style.css
+│
+├── templates/
+│   └── index.html
+│
+├── tests/
+│   ├── test_airports.py
+│   ├── test_db.py
+│   ├── test_flight_api.py
+│   ├── test_routes.py
+│   └── test_validation.py
+│
+└── .github/
+    └── workflows/
+        └── ci.yml
