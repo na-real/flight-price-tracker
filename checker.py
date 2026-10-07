@@ -1,15 +1,12 @@
-from db import db, init_db
+from db import db, init_db, DATABASE_URL
 import os
-import sqlite3
 import smtplib
 from email.message import EmailMessage
-from datetime import datetime
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 from services.flight_api import search_flights
 
 load_dotenv()
-
-DB_PATH = os.getenv("DB_PATH", "flights.db")
 
 
 def send_email(to_email, subject, body):
@@ -32,6 +29,7 @@ def send_email(to_email, subject, body):
         server.starttls()
         server.login(username, password)
         server.send_message(msg)
+
 
 def run():
     init_db()
@@ -72,15 +70,33 @@ def run():
             print(f"Current lowest price: ₹{current_price:,.0f}")
 
             # Save price history
-            conn.execute("""
-                INSERT INTO price_history
-                (tracked_id, price, checked_at)
-                VALUES (?, ?, ?)
-            """, (
-                flight["id"],
-                current_price,
-                datetime.utcnow().isoformat()
-            ))
+            if DATABASE_URL:
+                conn.execute(
+                    """
+                    INSERT INTO price_history
+                    (tracked_id, price, checked_at)
+                    VALUES (%s, %s, %s)
+                    """,
+                    (
+                        flight["id"],
+                        current_price,
+                        datetime.now(timezone.utc).isoformat()
+                    )
+                )
+
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO price_history
+                    (tracked_id, price, checked_at)
+                    VALUES (?, ?, ?)
+                    """,
+                    (
+                        flight["id"],
+                        current_price,
+                        datetime.now(timezone.utc).isoformat()
+                    )
+                )
 
             # Determine whether this is a new record low
             is_new_low = (
@@ -103,16 +119,35 @@ def run():
                     old_lowest
                 )
 
-            conn.execute("""
-                UPDATE tracked_flights
-                SET lowest_price = ?,
-                    last_price = ?
-                WHERE id = ?
-            """, (
-                new_lowest,
-                current_price,
-                flight["id"]
-            ))
+            if DATABASE_URL:
+                conn.execute(
+                    """
+                    UPDATE tracked_flights
+                    SET lowest_price = %s,
+                        last_price = %s
+                    WHERE id = %s
+                    """,
+                    (
+                        new_lowest,
+                        current_price,
+                        flight["id"]
+                    )
+                )
+
+            else:
+                conn.execute(
+                    """
+                    UPDATE tracked_flights
+                    SET lowest_price = ?,
+                        last_price = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        new_lowest,
+                        current_price,
+                        flight["id"]
+                    )
+                )
 
             # -----------------------------------------
             # SEND ALERT
@@ -131,7 +166,8 @@ def run():
                     f"{flight['arrival']}"
                 )
 
-                body = f"""
+                if old_lowest is not None:
+                    body = f"""
 ✈️ FLIGHT PRICE ALERT
 
 {alert_reason}
@@ -150,7 +186,9 @@ Your target price:
 
 Previous lowest price:
 ₹{old_lowest:,.0f}
-""" if old_lowest is not None else f"""
+"""
+                else:
+                    body = f"""
 ✈️ FLIGHT PRICE ALERT
 
 📉 FIRST PRICE RECORDED
@@ -191,11 +229,26 @@ Book soon if this price works for you.
             # Once target has been reached,
             # never send another TARGET alert.
             if reached_target:
-                conn.execute("""
-                    UPDATE tracked_flights
-                    SET target_alert_sent = 1
-                    WHERE id = ?
-                """, (flight["id"],))
+
+                if DATABASE_URL:
+                    conn.execute(
+                        """
+                        UPDATE tracked_flights
+                        SET target_alert_sent = 1
+                        WHERE id = %s
+                        """,
+                        (flight["id"],)
+                    )
+
+                else:
+                    conn.execute(
+                        """
+                        UPDATE tracked_flights
+                        SET target_alert_sent = 1
+                        WHERE id = ?
+                        """,
+                        (flight["id"],)
+                    )
 
         except Exception as exc:
             print(

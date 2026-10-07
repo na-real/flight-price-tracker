@@ -1,4 +1,4 @@
-from db import db, init_db
+from db import db, init_db, DATABASE_URL
 from validation import get_missing_fields, validate_target_price, clean_iata
 import math
 import csv
@@ -535,7 +535,6 @@ def api_search():
 # ============================================================
 # TRACK FLIGHT PRICE
 # ============================================================
-
 @app.post("/api/track")
 def track():
 
@@ -567,6 +566,7 @@ def track():
     # --------------------------------------------------------
     # VALIDATE TARGET PRICE
     # --------------------------------------------------------
+
     try:
         target_price = validate_target_price(
             data["target_price"]
@@ -577,15 +577,14 @@ def track():
         }), 400
 
     if target_price <= 0:
-
         return jsonify({
-            "error":
-                "Target price must be greater than zero."
+            "error": "Target price must be greater than zero."
         }), 400
 
     # --------------------------------------------------------
     # CLEAN INPUTS
     # --------------------------------------------------------
+
     departure = clean_iata(data["departure"])
     arrival = clean_iata(data["arrival"])
 
@@ -612,49 +611,74 @@ def track():
 
     try:
 
-        cur = conn.execute(
-            """
-            INSERT INTO tracked_flights
-            (
-                departure,
-                arrival,
-                outbound_date,
-                return_date,
-                target_price,
-                email,
-                created_at
+        if DATABASE_URL:
+            # PostgreSQL
+            cur = conn.execute(
+                """
+                INSERT INTO tracked_flights
+                (
+                    departure,
+                    arrival,
+                    outbound_date,
+                    return_date,
+                    target_price,
+                    email,
+                    created_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    departure,
+                    arrival,
+                    outbound_date,
+                    return_date,
+                    target_price,
+                    email,
+                    datetime.now(timezone.utc).isoformat()
+                )
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                departure,
-                arrival,
-                outbound_date,
-                return_date,
-                target_price,
-                email,
-                datetime.now(timezone.utc).isoformat()
+
+            tracking_id = cur.fetchone()["id"]
+
+        else:
+            # SQLite
+            cur = conn.execute(
+                """
+                INSERT INTO tracked_flights
+                (
+                    departure,
+                    arrival,
+                    outbound_date,
+                    return_date,
+                    target_price,
+                    email,
+                    created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    departure,
+                    arrival,
+                    outbound_date,
+                    return_date,
+                    target_price,
+                    email,
+                    datetime.now(timezone.utc).isoformat()
+                )
             )
-        )
+
+            tracking_id = cur.lastrowid
 
         conn.commit()
 
-        tracking_id = cur.lastrowid
-
     finally:
-
         conn.close()
 
     return jsonify({
-
-        "message":
-            "Flight tracking started!",
-
-        "id":
-            tracking_id
-
-    })
-# ============================================================
+        "message": "Flight tracking started!",
+        "id": tracking_id
+    })# ============================================================
 # GET TRACKED FLIGHTS
 # ============================================================
 
@@ -692,31 +716,48 @@ def get_tracked_flights():
 # ============================================================
 # PRICE HISTORY
 # ============================================================
-
 @app.get("/api/history/<int:tracked_id>")
 def history(tracked_id):
 
     conn = db()
 
-    rows = conn.execute(
-        """
-        SELECT
-            price,
-            checked_at
-        FROM price_history
-        WHERE tracked_id = ?
-        ORDER BY checked_at
-        """,
-        (tracked_id,)
-    ).fetchall()
+    try:
 
-    conn.close()
+        if DATABASE_URL:
+            # PostgreSQL
+            rows = conn.execute(
+                """
+                SELECT
+                    price,
+                    checked_at
+                FROM price_history
+                WHERE tracked_id = %s
+                ORDER BY checked_at
+                """,
+                (tracked_id,)
+            ).fetchall()
+
+        else:
+            # SQLite
+            rows = conn.execute(
+                """
+                SELECT
+                    price,
+                    checked_at
+                FROM price_history
+                WHERE tracked_id = ?
+                ORDER BY checked_at
+                """,
+                (tracked_id,)
+            ).fetchall()
+
+    finally:
+        conn.close()
 
     return jsonify([
         dict(row)
         for row in rows
     ])
-
 
 # ============================================================
 # START APPLICATION
