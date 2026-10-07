@@ -82,19 +82,3 @@ flight-price-tracker/
 └── .github/
     └── workflows/
         └── ci.yml
-```md
-## 🏗️ Architecture
-
-```mermaid
-flowchart TD
-    U[User] --> F[SkyTrack Frontend]
-    F --> A[Flask Backend]
-
-    A --> S[SerpAPI<br/>Google Flights]
-    A --> DB[(Supabase<br/>PostgreSQL)]
-
-    G[GitHub Actions<br/>Hourly Checker] --> A
-    G --> DB
-    G --> S
-    G --> E[Gmail SMTP<br/>Price Alerts]
-    R[Render<br/>Gunicorn] --> A
