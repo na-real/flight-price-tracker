@@ -673,7 +673,6 @@ def get_tracked_flights():
                 outbound_date,
                 return_date,
                 target_price,
-                email,
                 lowest_price,
                 last_price,
                 created_at
@@ -728,5 +727,5 @@ if __name__ == "__main__":
     init_db()
 
     app.run(
-        debug=True
+        debug=False
     )
