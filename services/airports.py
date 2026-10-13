@@ -28,7 +28,7 @@ def load_airports():
     global airports
 
     if not os.path.exists(AIRPORTS_FILE):
-        print("❌ airports.csv not found!")
+        print("airports.csv not found!")
         return
 
     airports.clear()
@@ -91,7 +91,7 @@ def load_airports():
             })
 
     print(
-        f"✈️ Loaded {len(airports)} airports"
+        f"Loaded {len(airports)} airports"
     )
 
 

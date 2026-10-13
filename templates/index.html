@@ -1,674 +1,842 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SkyTrack — Flight Price Tracker & Provider Fare Intelligence</title>
+    <meta name="description"
+        content="Compare flight offers across verified providers, track prices with intelligent target alerts, and discover better fares with confidence.">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://skytrack-flights.onrender.com/">
 
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
+    <!-- Open Graph Metadata -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="SkyTrack — Flight Price Tracker & Provider Fare Intelligence">
+    <meta property="og:description"
+        content="Compare flight offers across verified providers, track prices with intelligent target alerts, and discover better fares with confidence.">
+    <meta property="og:url" content="https://skytrack-flights.onrender.com/">
+    <meta property="og:site_name" content="SkyTrack">
+    <meta property="og:locale" content="en_US">
 
-    <title>SkyTrack — Flight Price Tracker</title>
+    <!-- Twitter Card Metadata -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="SkyTrack — Flight Price Tracker & Provider Fare Intelligence">
+    <meta name="twitter:description"
+        content="Compare flight offers across verified providers, track prices with intelligent target alerts, and discover better fares with confidence.">
 
-    <link rel="stylesheet"
-          href="/static/style.css">
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "SkyTrack",
+        "url": "https://skytrack-flights.onrender.com/",
+        "applicationCategory": "TravelApplication",
+        "operatingSystem": "All",
+        "description": "Intelligent flight price tracking and multi-provider fare comparison platform.",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "INR"
+        },
+        "featureList": [
+            "Multi-provider flight price comparison",
+            "Automated price tracking and alerts",
+            "Non-stop and connecting route search",
+            "Nearby airport price intelligence",
+            "Historical price trend analytics"
+        ]
+    }
+    </script>
 
+    <!-- Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="/static/style.css">
+
+    <!-- External Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 
-
 <body>
+    <div class="spatial-bg-ambient">
+        <div class="spatial-glow glow-top"></div>
+        <div class="spatial-glow glow-bottom"></div>
+    </div>
 
-<div class="app">
+    <div class="app">
 
-
-    <!-- =====================================================
-         NAVBAR
-    ====================================================== -->
-
-    <nav class="navbar">
-
-        <div class="logo">
-            ✈️ <span>SkyTrack</span>
-        </div>
-
-
-        <div class="nav-links">
-
-            <a href="#search">
-                Search
-            </a>
-
-            <a href="#tracked-section">
-                My Flights
-            </a>
-
-        </div>
-
-    </nav>
-
-
-
-    <!-- =====================================================
-         HERO
-    ====================================================== -->
-
-    <section class="hero">
-
-        <div class="hero-text">
-
-
-            <div class="badge">
-
-                ✈️ SMART FLIGHT TRACKING
-
-            </div>
-
-
-            <h1>
-
-                Find the price.
-
-                <br>
-
-                <span>
-                    Track the drop.
-                </span>
-
-            </h1>
-
-
-            <p>
-
-                Search flights, compare nonstop and
-                connecting flights, track their prices
-                and get notified when the fare drops.
-
-            </p>
-
-
-        </div>
-
-    </section>
-
-
-
-    <!-- =====================================================
-         SEARCH CARD
-    ====================================================== -->
-
-    <section
-        class="search-card"
-        id="search"
-    >
-
-
-        <div class="section-title">
-
-            <div>
-
-                <h2>
-                    Search flights
-                </h2>
-
-
-                <p>
-                    Find the best available fares.
-                </p>
-
-            </div>
-
-        </div>
-
-
-
-        <!-- =================================================
-             SEARCH FORM
-        ================================================== -->
-
-        <form id="searchForm">
-
-
-            <div class="search-grid">
-
-
-                <!-- =========================================
-                     FROM
-                ========================================== -->
-
-                <label>
-
-                    <span>
-                        From
+        <!-- =====================================================
+             SPATIAL NAVBAR
+        ====================================================== -->
+        <header class="navbar-wrapper">
+            <nav class="navbar" id="navbar">
+                <a href="#" class="logo" aria-label="SkyTrack Home">
+                    <span class="logo-mark">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path
+                                d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.3c.4-.2.6-.6.5-1.1z" />
+                        </svg>
                     </span>
+                    <span class="logo-text">SkyTrack</span>
+                </a>
 
-
-                    <div class="airport-input">
-
-                        <input
-                            id="departure"
-                            type="text"
-                            placeholder="City or airport"
-                            autocomplete="off"
-                            required
-                        >
-
-
-                        <div
-                            id="departureSuggestions"
-                            class="airport-suggestions"
-                        ></div>
-
-                    </div>
-
-
-                    <!-- NEARBY DEPARTURE -->
-
-                    <div class="nearby-option">
-
-                        <label>
-
-                            <input
-                                type="checkbox"
-                                id="nearbyDeparture"
-                            >
-
-                            <span>
-                                Include nearby airports
-                            </span>
-
-                        </label>
-
-                    </div>
-
-                </label>
-
-
-
-                <!-- =========================================
-                     ROUTE ARROW
-                ========================================== -->
-
-                <div class="route-arrow">
-
-                    →
-
+                <div class="nav-links">
+                    <a href="#search" class="nav-link active">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                        <span>Search Flights</span>
+                    </a>
+                    <a href="#tracked-section" class="nav-link">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                        </svg>
+                        <span>Tracked Flights</span>
+                    </a>
+                    <a href="#comparison-section" class="nav-link" id="navCompareLink" style="display: none;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="20" x2="18" y2="10"></line>
+                            <line x1="12" y1="20" x2="12" y2="4"></line>
+                            <line x1="6" y1="20" x2="6" y2="14"></line>
+                        </svg>
+                        <span>Compare Providers</span>
+                    </a>
+                    <a href="#dashboard-metrics" class="nav-link">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 3v18h18"></path>
+                            <path d="m19 9-5 5-4-4-3 3"></path>
+                        </svg>
+                        <span>Price History</span>
+                    </a>
                 </div>
 
-
-
-                <!-- =========================================
-                     TO
-                ========================================== -->
-
-                <label>
-
-                    <span>
-                        To
-                    </span>
-
-
-                    <div class="airport-input">
-
-                        <input
-                            id="arrival"
-                            type="text"
-                            placeholder="City or airport"
-                            autocomplete="off"
-                            required
-                        >
-
-
-                        <div
-                            id="arrivalSuggestions"
-                            class="airport-suggestions"
-                        ></div>
-
-                    </div>
-
-
-                    <!-- NEARBY ARRIVAL -->
-
-                    <div class="nearby-option">
-
-                        <label>
-
-                            <input
-                                type="checkbox"
-                                id="nearbyArrival"
-                            >
-
-                            <span>
-                                Include nearby airports
-                            </span>
-
-                        </label>
-
-                    </div>
-
-                </label>
-
-
-
-                <!-- =========================================
-                     DEPARTURE DATE
-                ========================================== -->
-
-                <label>
-
-                    <span>
-                        Departure
-                    </span>
-
-
-                    <input
-    id="outbound_date"
-    type="date"
-    required
-    min=""
->
-
-                </label>
-
-
-
-                <!-- =========================================
-                     RETURN DATE
-                ========================================== -->
-
-                <label>
-
-                    <span>
-                        Return
-                    </span>
-
-
-                    <input
-    id="return_date"
-    type="date"
-    min=""
->
-
-                </label>
-
-
-            </div>
-
-
-
-            <!-- =============================================
-                 SEARCH BUTTON
-            ============================================== -->
-
-            <button
-                type="submit"
-                class="primary-btn"
-            >
-
-                🔍 Search Flights
-
-            </button>
-
-
-        </form>
-
-
-
-        <!-- SEARCH STATUS -->
-
-        <p
-            id="status"
-            class="status"
-        ></p>
-
-
-    </section>
-
-
-
-    <!-- =====================================================
-         SEARCH RESULTS
-    ====================================================== -->
-
-    <!-- =====================================================
-     FLIGHT RESULTS
-====================================================== -->
-
-<section class="results-section">
-
-    <div class="results-header">
-
-        <div>
-
-            <div class="section-label">
-                FLIGHT RESULTS
-            </div>
-
-            <h2>
-                Available flights
-            </h2>
-
-            <p id="resultSummary">
-                Search to see available flights.
-            </p>
-
-        </div>
-
-    </div>
-
-
-    <!-- =================================================
-         FILTER BAR
-    ================================================== -->
-
-    <div
-        id="flightFilters"
-        class="flight-filters"
-        style="display: none;"
-    >
-
-        <!-- SORT -->
-
-        <div class="filter-group">
-
-            <label for="sortFlights">
-                Sort by
-            </label>
-
-            <select id="sortFlights">
-
-                <option value="cheapest">
-                    💰 Cheapest
-                </option>
-
-                <option value="fastest">
-                    ⚡ Fastest
-                </option>
-
-            </select>
-
-        </div>
-
-
-        <!-- STOPS -->
-
-        <div class="filter-group">
-
-            <label>
-                Stops
-            </label>
-
-            <div class="filter-options">
-
-                <label>
-                    <input
-                        type="checkbox"
-                        id="filterNonstop"
-                    >
-                    Non-stop
-                </label>
-
-                <label>
-                    <input
-                        type="checkbox"
-                        id="filterOneStop"
-                    >
-                    1 stop
-                </label>
-
-                <label>
-                    <input
-                        type="checkbox"
-                        id="filterTwoPlus"
-                    >
-                    2+ stops
-                </label>
-
-            </div>
-
-        </div>
-
-
-        <!-- MAX PRICE -->
-
-        <div class="filter-group">
-
-            <label for="maxPrice">
-                Maximum price
-            </label>
-
-            <input
-                id="maxPrice"
-                type="number"
-                min="0"
-                placeholder="₹ 25,000"
-            >
-
-        </div>
-        <!-- AIRLINES -->
-
-<div class="filter-group airline-filter-group">
-
-    <div class="airline-filter-title">
-        Airlines
-    </div>
-
-    <div
-        id="airlineFilters"
-        class="airline-filters"
-    ></div>
-
-</div>
-
-
-        <!-- RESET -->
-
-        <button
-            type="button"
-            id="resetFilters"
-            class="reset-filter-btn"
-        >
-
-            ↻ Reset
-
-        </button>
-
-    </div>
-
-
-    <!-- RESULTS -->
-
-    <div id="results"></div>
-
-</section>
-
-
-
-    <!-- =====================================================
-         PRICE TRACKING CARD
-    ====================================================== -->
-
-    <section class="track-card">
-
-
-        <div>
-
-
-            <div class="section-label">
-
-                🔔 PRICE ALERT
-
-            </div>
-
-
-            <h2>
-
-                Want us to watch this flight?
-
-            </h2>
-
-
-            <p>
-
-                Set a target price and we'll email you
-                when the fare reaches it.
-
-            </p>
-
-
-        </div>
-
-
-
-        <!-- =================================================
-             TRACK FORM
-        ================================================== -->
-
-        <form id="trackForm">
-
-
-            <div class="track-grid">
-
-
-                <!-- TARGET PRICE -->
-
-                <label>
-
-                    <span>
-                        Target price (₹)
-                    </span>
-
-
-                    <input
-                        id="target_price"
-                        type="number"
-                        min="1"
-                        placeholder="8000"
-                        required
-                    >
-
-                </label>
-
-
-
-                <!-- EMAIL -->
-
-                <label>
-
-                    <span>
-                        Email for alerts
-                    </span>
-
-
-                    <input
-                        id="email"
-                        type="email"
-                        placeholder="you@example.com"
-                        required
-                    >
-
-                </label>
-
-
-            </div>
-
-
-
-            <!-- TRACK BUTTON -->
-
-            <button
-                type="submit"
-                class="primary-btn"
-            >
-
-                🔔 Start Price Tracking
-
-            </button>
-
-
-        </form>
-
-
-
-        <!-- TRACKING STATUS -->
-
-        <p
-            id="trackStatus"
-            class="status"
-        ></p>
-
-
-    </section>
-
-
-
-    <!-- =====================================================
-         TRACKED FLIGHTS
-    ====================================================== -->
-
-    <section
-        class="tracked-section"
-        id="tracked-section"
-    >
-
-
-        <div class="section-title">
-
-
-            <div>
-
-
-                <div class="section-label">
-
-                    YOUR TRACKED FLIGHTS
-
+                <div class="nav-actions">
+                    <button type="button" id="themeToggle" class="theme-toggle-btn"
+                        aria-label="Toggle Dark / Light Theme" title="Toggle theme">
+                        <span class="theme-icon sun-icon">
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="5"></circle>
+                                <line x1="12" y1="1" x2="12" y2="3"></line>
+                                <line x1="12" y1="21" x2="12" y2="23"></line>
+                                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                                <line x1="1" y1="12" x2="3" y2="12"></line>
+                                <line x1="21" y1="12" x2="23" y2="12"></line>
+                                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                            </svg>
+                        </span>
+                        <span class="theme-icon moon-icon">
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                            </svg>
+                        </span>
+                    </button>
+                </div>
+            </nav>
+        </header>
+
+
+        <!-- =====================================================
+             HERO SECTION
+        ====================================================== -->
+        <section class="hero">
+            <div class="hero-content">
+                <div class="hero-badge">
+                    <span class="pulse-indicator"></span>
+                    <span class="hero-badge-text">SMART FLIGHT INTELLIGENCE</span>
                 </div>
 
+                <h1 class="hero-title">
+                    Find better fares.
+                    <br>
+                    <span class="gradient-text">Track every drop.</span>
+                </h1>
 
-                <h2>
-
-                    Price watch
-
-                </h2>
-
-
-                <p>
-
-                    Keep an eye on your saved routes.
-
+                <p class="hero-subtitle">
+                    Compare flight offers, track prices across providers, and discover better fares with confidence.
                 </p>
+            </div>
+        </section>
 
 
+        <!-- =====================================================
+             SPATIAL SEARCH CARD
+        ====================================================== -->
+        <section class="search-card" id="search">
+            <div class="search-card-header">
+                <div>
+                    <h2>Search flights</h2>
+                    <p>Find the best available fares with real-time route intelligence.</p>
+                </div>
+
+                <!-- Trip Type, Passengers & Class Segmented Controls -->
+                <div class="search-controls-bar">
+                    <div class="segmented-control" id="tripTypeControl" role="radiogroup" aria-label="Trip type">
+                        <button type="button" class="segment-btn active" data-trip="round_trip" id="btnRoundTrip">
+                            Round trip
+                        </button>
+                        <button type="button" class="segment-btn" data-trip="one_way" id="btnOneWay">
+                            One way
+                        </button>
+                        <button type="button" class="segment-btn" data-trip="multi_city" id="btnMultiCity">
+                            Multi-city
+                        </button>
+                    </div>
+
+                    <div class="search-options-group">
+                        <!-- Passenger Selector Popover -->
+                        <div class="passenger-picker-wrapper" id="passengerPickerWrapper">
+                            <button type="button" class="passenger-trigger-btn" id="passengerTriggerBtn" aria-expanded="false" aria-haspopup="true">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="12" cy="7" r="4"></circle>
+                                </svg>
+                                <span id="passengerSummaryText">1 Adult</span>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="chevron-indicator">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                            </button>
+                            <div class="passenger-popover" id="passengerPopover" role="dialog" aria-label="Passengers configuration" style="display: none;">
+                                <div class="passenger-row">
+                                    <div class="passenger-type-info">
+                                        <span class="passenger-type-title">Adults</span>
+                                        <span class="passenger-type-desc">Age 12+</span>
+                                    </div>
+                                    <div class="passenger-stepper">
+                                        <button type="button" class="stepper-btn" id="btnAdultMinus" aria-label="Decrease adults" disabled>
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                        </button>
+                                        <span class="stepper-count" id="adultCountDisplay">1</span>
+                                        <button type="button" class="stepper-btn" id="btnAdultPlus" aria-label="Increase adults">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="passenger-row">
+                                    <div class="passenger-type-info">
+                                        <span class="passenger-type-title">Children</span>
+                                        <span class="passenger-type-desc">Age 2–11</span>
+                                    </div>
+                                    <div class="passenger-stepper">
+                                        <button type="button" class="stepper-btn" id="btnChildMinus" aria-label="Decrease children" disabled>
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                        </button>
+                                        <span class="stepper-count" id="childCountDisplay">0</span>
+                                        <button type="button" class="stepper-btn" id="btnChildPlus" aria-label="Increase children">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="passenger-row">
+                                    <div class="passenger-type-info">
+                                        <span class="passenger-type-title">Infants</span>
+                                        <span class="passenger-type-desc">Under 2 (in lap)</span>
+                                    </div>
+                                    <div class="passenger-stepper">
+                                        <button type="button" class="stepper-btn" id="btnInfantMinus" aria-label="Decrease infants" disabled>
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                        </button>
+                                        <span class="stepper-count" id="infantCountDisplay">0</span>
+                                        <button type="button" class="stepper-btn" id="btnInfantPlus" aria-label="Increase infants">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="passenger-popover-footer">
+                                    <span class="passenger-max-note">Max 9 passengers</span>
+                                    <button type="button" class="passenger-done-btn" id="btnPassengerDone">Done</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="class-picker-wrapper">
+                            <select id="travelClass" class="class-select" aria-label="Cabin Class">
+                                <option value="1">Economy</option>
+                                <option value="2">Premium Economy</option>
+                                <option value="3">Business</option>
+                                <option value="4">First Class</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
             </div>
 
+            <!-- SEARCH FORM -->
+            <form id="searchForm" novalidate>
+                <!-- Standard Flight Inputs (One-way and Round-trip) -->
+                <div id="standardFlightInputs">
+                    <div class="search-grid">
 
-        </div>
+                        <!-- ORIGIN (FROM) -->
+                        <div class="field-group field-origin">
+                            <label for="departure" class="field-label">
+                                <span>From</span>
+                            </label>
+                            <div class="airport-input-wrapper">
+                                <span class="input-icon">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"></path>
+                                        <circle cx="12" cy="10" r="3"></circle>
+                                    </svg>
+                                </span>
+                                <input id="departure" type="text" placeholder="Departure city or airport" autocomplete="off"
+                                    required>
+                                <div id="departureSuggestions" class="airport-suggestions" role="listbox"></div>
+                            </div>
+
+                            <!-- NEARBY DEPARTURE -->
+                            <div class="nearby-option">
+                                <label class="checkbox-chip">
+                                    <input type="checkbox" id="nearbyDeparture">
+                                    <span class="checkbox-visual">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                            stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="20 6 9 17 4 12"></polyline>
+                                        </svg>
+                                    </span>
+                                    <span class="checkbox-label">Include nearby airports</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- SWAP BUTTON -->
+                        <div class="swap-action-wrapper">
+                            <button type="button" id="swapAirports" class="swap-btn" title="Swap origin and destination"
+                                aria-label="Swap origin and destination">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="m8 3 4 8 5-5 5 15H2L8 3z" />
+                                    <path d="M4 17h16" />
+                                    <path d="m16 21 4-4-4-4" />
+                                    <path d="M20 7H4" />
+                                    <path d="m8 3-4 4 4 4" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <!-- DESTINATION (TO) -->
+                        <div class="field-group field-destination">
+                            <label for="arrival" class="field-label">
+                                <span>To</span>
+                            </label>
+                            <div class="airport-input-wrapper">
+                                <span class="input-icon">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <polygon points="12 8 8 12 12 16 12 8"></polygon>
+                                        <line x1="16" y1="12" x2="8" y2="12"></line>
+                                    </svg>
+                                </span>
+                                <input id="arrival" type="text" placeholder="Arrival city or airport" autocomplete="off"
+                                    required>
+                                <div id="arrivalSuggestions" class="airport-suggestions" role="listbox"></div>
+                            </div>
+
+                            <!-- NEARBY ARRIVAL -->
+                            <div class="nearby-option">
+                                <label class="checkbox-chip">
+                                    <input type="checkbox" id="nearbyArrival">
+                                    <span class="checkbox-visual">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                            stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="20 6 9 17 4 12"></polyline>
+                                        </svg>
+                                    </span>
+                                    <span class="checkbox-label">Include nearby airports</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- DEPARTURE DATE -->
+                        <div class="field-group field-date">
+                            <label for="outbound_date" class="field-label">
+                                <span>Departure</span>
+                            </label>
+                            <div class="date-input-wrapper">
+                                <span class="input-icon">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                                    </svg>
+                                </span>
+                                <input id="outbound_date" type="date" required min="">
+                            </div>
+                        </div>
+
+                        <!-- RETURN DATE -->
+                        <div class="field-group field-date" id="returnDateFieldGroup">
+                            <label for="return_date" class="field-label">
+                                <span>Return</span>
+                            </label>
+                            <div class="date-input-wrapper">
+                                <span class="input-icon">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                                    </svg>
+                                </span>
+                                <input id="return_date" type="date" min="">
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Multi-City Container -->
+                <div id="multiCityContainer" class="multi-city-container" style="display: none;">
+                    <div class="multi-city-header">
+                        <div class="multi-city-info">
+                            <span class="multi-city-title">Flight Legs</span>
+                            <span class="multi-city-counter" id="multiCityLegCountBadge">2 of 5 legs</span>
+                        </div>
+                        <button type="button" class="btn-add-leg" id="btnAddLeg">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            <span>Add flight leg</span>
+                        </button>
+                    </div>
+                    <div id="multiCityLegsList" class="multi-city-legs-list">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+
+                <!-- SUBMIT BUTTON -->
+                <div class="search-submit-bar">
+                    <button type="submit" id="searchSubmitBtn" class="primary-btn">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                        <span>Search Flights</span>
+                    </button>
+                </div>
+            </form>
+
+            <!-- SEARCH STATUS -->
+            <div id="statusWrapper" class="status-wrapper" style="display: none;">
+                <div class="status-indicator-dot"></div>
+                <p id="status" class="status" role="status" aria-live="polite"></p>
+            </div>
+        </section>
+
+
+        <!-- =====================================================
+             FLIGHT RESULTS SECTION
+        ====================================================== -->
+        <section class="results-section" id="results-section">
+            <div class="results-header">
+                <div>
+                    <div class="section-label">FLIGHT RESULTS</div>
+                    <h2>Available flights</h2>
+                    <p id="resultSummary">Search to see available flights and intelligent route comparisons.</p>
+                </div>
+            </div>
+
+            <!-- FILTER BAR -->
+            <div id="flightFilters" class="flight-filters" style="display: none;">
+                <!-- SORT -->
+                <div class="filter-group">
+                    <label for="sortFlights">Sort by</label>
+                    <div class="select-styled">
+                        <select id="sortFlights">
+                            <option value="cheapest">Cheapest</option>
+                            <option value="fastest">Fastest</option>
+                        </select>
+                        <span class="select-arrow">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- STOPS -->
+                <div class="filter-group">
+                    <label>Stops</label>
+                    <div class="filter-options">
+                        <label class="filter-pill">
+                            <input type="checkbox" id="filterNonstop">
+                            <span>Non-stop</span>
+                        </label>
+                        <label class="filter-pill">
+                            <input type="checkbox" id="filterOneStop">
+                            <span>1 stop</span>
+                        </label>
+                        <label class="filter-pill">
+                            <input type="checkbox" id="filterTwoPlus">
+                            <span>2+ stops</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- MAX PRICE -->
+                <div class="filter-group">
+                    <label for="maxPrice">Maximum price</label>
+                    <div class="price-input-wrapper">
+                        <span class="currency-prefix">&#8377;</span>
+                        <input id="maxPrice" type="number" min="0" placeholder="25,000">
+                    </div>
+                </div>
+
+                <!-- AIRLINES -->
+                <div class="filter-group airline-filter-group">
+                    <div class="airline-filter-title">Airlines</div>
+                    <div id="airlineFilters" class="airline-filters"></div>
+                </div>
+
+                <!-- RESET -->
+                <div class="filter-group reset-group">
+                    <button type="button" id="resetFilters" class="reset-filter-btn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="1 4 1 10 7 10"></polyline>
+                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                        </svg>
+                        <span>Reset</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- RESULTS LIST -->
+            <div id="results" class="results-container"></div>
+        </section>
+
+
+        <!-- =====================================================
+             MULTI-PROVIDER PRICE COMPARISON SECTION
+        ====================================================== -->
+        <section class="comparison-section" id="comparison-section" style="display: none;">
+            <!-- BACK NAVIGATION BAR -->
+            <div class="comparison-nav-bar" id="comparisonNavBar">
+                <button type="button" id="btnBackToResults" class="back-to-results-btn" title="Back to flight results">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="19" y1="12" x2="5" y2="12"></line>
+                        <polyline points="12 19 5 12 12 5"></polyline>
+                    </svg>
+                    <span>Back to all flight results</span>
+                </button>
+            </div>
+
+            <!-- SELECTED FLIGHT SUMMARY HERO -->
+            <div class="selected-flight-summary-card" id="selectedFlightSummaryCard" style="display: none;">
+                <!-- Populated dynamically with exact itinerary -->
+            </div>
+
+            <!-- EXACT FLIGHT OFFERS HEADER -->
+            <div class="exact-offers-header" id="exactOffersHeader" style="display: none;">
+                <div class="section-label">BOOKING PROVIDER COMPARISON</div>
+                <h2>Compare booking prices</h2>
+                <p id="exactOffersSubhead">Live verified offers for this exact itinerary across authorized booking channels.</p>
+            </div>
+
+            <!-- EXACT FLIGHT OFFERS TABLE / CARDS -->
+            <div id="exactFlightOffersContainer" class="exact-flight-offers-container" style="display: none;"></div>
+
+            <div class="comparison-header" id="allComparisonsHeader">
+                <div class="comparison-header-content">
+                    <div class="section-label">MULTI-PROVIDER INTELLIGENCE</div>
+                    <h2 id="comparisonSectionTitle">Compare prices across providers</h2>
+                    <p id="comparisonSummary">Compare real offers for equivalent flight schedules across airlines and
+                        booking platforms.</p>
+                </div>
+
+                <!-- Comparison View Segmented Controls & Sort -->
+                <div class="comparison-controls-bar">
+                    <div class="segmented-control" id="comparisonViewControl" role="radiogroup"
+                        aria-label="Comparison view mode">
+                        <button type="button" class="segment-btn active" data-view="grouped" id="btnViewGrouped">
+                            Grouped by flight
+                        </button>
+                        <button type="button" class="segment-btn" data-view="table" id="btnViewTable">
+                            Comparison table
+                        </button>
+                    </div>
+
+                    <div class="comparison-sort-wrapper">
+                        <label for="sortComparison" class="sr-only">Sort comparison</label>
+                        <div class="select-styled compact-select">
+                            <select id="sortComparison" aria-label="Sort comparison">
+                                <option value="cheapest">Price: Low to High</option>
+                                <option value="fastest">Duration: Short to Long</option>
+                            </select>
+                            <span class="select-arrow">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PROVIDER TRANSPARENCY & AVAILABILITY CARD -->
+            <div class="provider-transparency-card" id="providerTransparencyCard">
+                <div class="transparency-header">
+                    <div class="transparency-title">
+                        <span class="live-dot pulse"></span>
+                        <span id="providerCountSummary">Comparing booking providers</span>
+                    </div>
+                    <div class="provider-stats-pill" id="providerSavingsPill">
+                        <span class="savings-amount" id="savingsAmountText">Potential savings available</span>
+                    </div>
+                </div>
+                <div class="provider-status-chips" id="providerStatusChips"></div>
+                <div class="provider-notice-message" id="providerNoticeMessage" style="display: none;"></div>
+            </div>
+
+            <!-- PROVIDER FILTER CHIPS -->
+            <div class="provider-filter-wrapper">
+                <span class="filter-label">Filter provider:</span>
+                <div class="provider-chips-scroll" id="providerFilterChips">
+                    <button type="button" class="provider-chip active" data-provider="all">All providers</button>
+                </div>
+            </div>
+
+            <!-- COMPARISON GROUPED FLIGHTS VIEW (Desktop cards & Mobile responsive) -->
+            <div id="comparisonGroupedContainer" class="comparison-grouped-container"></div>
+
+            <!-- COMPARISON ALL OFFERS TABLE (Desktop view) -->
+            <div id="comparisonTableContainer" class="comparison-table-wrapper" style="display: none;">
+                <table class="comparison-table" id="comparisonTable">
+                    <thead>
+                        <tr>
+                            <th>Airline & Flight</th>
+                            <th>Schedule & Route</th>
+                            <th>Stops</th>
+                            <th>Provider</th>
+                            <th>Baggage</th>
+                            <th>Total Price</th>
+                            <th>Booking</th>
+                        </tr>
+                    </thead>
+                    <tbody id="comparisonTableBody"></tbody>
+                </table>
+            </div>
+        </section>
 
 
 
-        <!-- TRACKED FLIGHTS WILL BE INSERTED HERE -->
+        <!-- =====================================================
+             PRICE TRACKING CARD
+        ====================================================== -->
+        <section class="track-card" id="track-card">
+            <div class="track-card-header">
+                <div class="section-label">PRICE RADAR</div>
+                <h2>Want us to watch this flight?</h2>
+                <p>Set a target price and receive instant notifications when the fare reaches it.</p>
+            </div>
 
-        <div id="tracked">
+            <!-- TRACK FORM -->
+            <form id="trackForm">
+                <div class="track-grid">
+                    <!-- TARGET PRICE -->
+                    <div class="field-group">
+                        <label for="target_price" class="field-label">
+                            <span>Target price (&#8377;)</span>
+                        </label>
+                        <div class="price-input-wrapper">
+                            <span class="currency-prefix">&#8377;</span>
+                            <input id="target_price" type="number" min="1" placeholder="8000" required>
+                        </div>
+                    </div>
 
-            Loading...
+                    <!-- EMAIL -->
+                    <div class="field-group">
+                        <label for="email" class="field-label">
+                            <span>Email for alerts</span>
+                        </label>
+                        <div class="airport-input-wrapper">
+                            <span class="input-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                    <path
+                                        d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z">
+                                    </path>
+                                    <polyline points="22,6 12,13 2,6"></polyline>
+                                </svg>
+                            </span>
+                            <input id="email" type="email" placeholder="you@example.com" required>
+                        </div>
+                    </div>
+                </div>
 
-        </div>
+                <!-- TRACK BUTTON -->
+                <button type="submit" class="primary-btn track-submit-btn">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                    </svg>
+                    <span>Start Price Tracking</span>
+                </button>
+            </form>
+
+            <!-- TRACKING STATUS -->
+            <p id="trackStatus" class="status" role="status" aria-live="polite"></p>
+        </section>
 
 
-    </section>
+        <!-- =====================================================
+             TRACKED FLIGHTS DASHBOARD
+        ====================================================== -->
+        <section class="tracked-section" id="tracked-section">
+            <div class="price-watch-header">
+                <div class="eyebrow-label">YOUR TRACKED FLIGHTS</div>
+                <h2 class="price-watch-title">Price watch</h2>
+                <p class="price-watch-desc">Your saved routes, price movements, and target fares — all in one place.</p>
+            </div>
+
+            <!-- DASHBOARD METRIC CARDS WITH 3D SPATIAL INTERACTION -->
+            <div id="dashboard-metrics" class="metrics-grid">
+                <!-- Metric 1: Active Routes -->
+                <div class="metric-card" data-tilt="true" tabindex="0" role="region" aria-label="Active routes metric">
+                    <div class="metric-header">
+                        <span class="metric-title">Active routes</span>
+                        <span class="metric-icon" aria-hidden="true">
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                                <path
+                                    d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.3c.4-.2.6-.6.5-1.1z" />
+                            </svg>
+                        </span>
+                    </div>
+                    <div class="metric-value" id="metricActiveRoutes">0</div>
+                    <div class="metric-subtitle">Routes being monitored</div>
+                </div>
+
+                <!-- Metric 2: Lowest Tracked Price -->
+                <div class="metric-card" data-tilt="true" tabindex="0" role="region"
+                    aria-label="Lowest tracked price metric">
+                    <div class="metric-header">
+                        <span class="metric-title">Lowest tracked price</span>
+                        <span class="metric-icon" aria-hidden="true">
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline>
+                                <polyline points="16 7 22 7 22 13"></polyline>
+                            </svg>
+                        </span>
+                    </div>
+                    <div class="metric-value" id="metricLowestPrice">&#8212;</div>
+                    <div class="metric-subtitle">Lowest price across saved routes</div>
+                </div>
+
+                <!-- Metric 3: Target Goal Status -->
+                <div class="metric-card" data-tilt="true" tabindex="0" role="region"
+                    aria-label="Target goal status metric">
+                    <div class="metric-header">
+                        <span class="metric-title">Target goal status</span>
+                        <span class="metric-icon" aria-hidden="true">
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <circle cx="12" cy="12" r="6"></circle>
+                                <circle cx="12" cy="12" r="2"></circle>
+                            </svg>
+                        </span>
+                    </div>
+                    <div class="metric-value" id="metricTargetStatus">&#8212;</div>
+                    <div class="metric-subtitle">Routes at or below target</div>
+                </div>
+
+                <!-- Metric 4: Radar Status -->
+                <div class="metric-card" data-tilt="true" tabindex="0" role="region" aria-label="Radar status metric">
+                    <div class="metric-header">
+                        <span class="metric-title">Radar status</span>
+                        <span class="metric-icon" aria-hidden="true">
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z">
+                                </path>
+                                <path d="M12 6a6 6 0 1 0 6 6 6 6 0 0 0-6-6zm0 10a4 4 0 1 1 4-4 4 4 0 0 1-4 4z"></path>
+                            </svg>
+                        </span>
+                    </div>
+                    <div class="metric-value radar-status-val" id="metricRadarStatus">
+                        <span class="status-dot status-active" id="radarStatusDot"></span>
+                        <span id="radarStatusText">Active</span>
+                    </div>
+                    <div class="metric-subtitle" id="metricRadarSubtitle">Automated price checks</div>
+                </div>
+            </div>
+
+            <!-- TRACKED FLIGHTS LIST -->
+            <div id="tracked" class="tracked-list">
+                <div class="tracked-skeleton">
+                    <div class="skeleton-line title"></div>
+                    <div class="skeleton-line meta"></div>
+                </div>
+            </div>
+        </section>
 
 
+        <!-- =====================================================
+             FOOTER
+        ====================================================== -->
+        <footer class="app-footer">
+            <div class="footer-content">
+                <div class="footer-brand-wrap">
+                    <div class="footer-brand">
+                        <span class="logo-mark small">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path
+                                    d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.3c.4-.2.6-.6.5-1.1z" />
+                            </svg>
+                        </span>
+                        <span>SkyTrack</span>
+                    </div>
+                    <p class="footer-note">Precision flight price intelligence and multi-provider fare comparison
+                        platform.</p>
+                </div>
+                <div class="footer-nav" aria-label="Footer Navigation">
+                    <a href="#search" class="footer-link">Search Flights</a>
+                    <a href="#tracked-section" class="footer-link">Tracked Flights</a>
+                    <a href="#dashboard-metrics" class="footer-link">Price Trends</a>
+                    <a href="/privacy" class="footer-link">Privacy Policy</a>
+                    <a href="/sitemap.xml" class="footer-link">Sitemap</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 SkyTrack. Live flight data sourced via verified travel providers.</p>
+            </div>
+        </footer>
 
-</div>
+    </div>
 
-
-
-<!-- =========================================================
-     JAVASCRIPT
-========================================================== -->
-
-<script src="/static/app.js"></script>
-
-
+    <!-- JAVASCRIPT -->
+    <script src="/static/app.js"></script>
 </body>
 
 </html>

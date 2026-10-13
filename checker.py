@@ -156,19 +156,19 @@ def run():
             if is_new_low or reached_target:
 
                 if reached_target:
-                    alert_reason = "🎯 TARGET PRICE REACHED"
+                    alert_reason = "TARGET PRICE REACHED"
                 else:
-                    alert_reason = "📉 NEW LOWEST PRICE"
+                    alert_reason = "NEW LOWEST PRICE"
 
                 subject = (
-                    f"✈️ Flight Price Alert: "
+                    f"Flight Price Alert: "
                     f"{flight['departure']} → "
                     f"{flight['arrival']}"
                 )
 
                 if old_lowest is not None:
                     body = f"""
-✈️ FLIGHT PRICE ALERT
+FLIGHT PRICE ALERT
 
 {alert_reason}
 
@@ -189,9 +189,9 @@ Previous lowest price:
 """
                 else:
                     body = f"""
-✈️ FLIGHT PRICE ALERT
+FLIGHT PRICE ALERT
 
-📉 FIRST PRICE RECORDED
+FIRST PRICE RECORDED
 
 Route:
 {flight['departure']} → {flight['arrival']}
@@ -212,7 +212,7 @@ This is the first price recorded for this tracked flight.
 
 Book soon if this price works for you.
 
-— Flight Price Tracker
+— SkyTrack Flight Intelligence
 """
 
                 send_email(
@@ -221,7 +221,7 @@ Book soon if this price works for you.
                     body
                 )
 
-                print("🔔 Alert email sent!")
+                print("Alert email sent!")
 
             else:
                 print("No alert needed.")
@@ -252,13 +252,13 @@ Book soon if this price works for you.
 
         except Exception as exc:
             print(
-                f"❌ Tracker {flight['id']} failed: {exc}"
+                f"Tracker {flight['id']} failed: {exc}"
             )
 
     conn.commit()
     conn.close()
 
-    print("\n✅ Price check completed.")
+    print("\nPrice check completed.")
 
 
 if __name__ == "__main__":

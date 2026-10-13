@@ -1,3 +1,4 @@
+# pyrefly: ignore [missing-import]
 import pytest
 
 from app import app
@@ -78,3 +79,58 @@ def test_track_route(client, monkeypatch, tmp_path):
     data = response.get_json()
 
     assert "message" in data
+
+
+def test_robots_txt(client):
+    response = client.get("/robots.txt")
+    assert response.status_code == 200
+    assert "text/plain" in response.content_type
+    content = response.get_data(as_text=True)
+    assert "User-agent: *" in content
+    assert "Disallow: /api/" in content
+    assert "Sitemap:" in content
+
+
+def test_sitemap_xml(client):
+    response = client.get("/sitemap.xml")
+    assert response.status_code == 200
+    assert "xml" in response.content_type
+    content = response.get_data(as_text=True)
+    assert "<urlset" in content
+    assert "<loc>" in content
+    assert "/privacy" in content
+
+
+def test_privacy_page(client):
+    response = client.get("/privacy")
+    assert response.status_code == 200
+    content = response.get_data(as_text=True)
+    assert "Privacy Policy" in content
+    assert "SkyTrack" in content
+
+
+def test_custom_404_handler(client):
+    response = client.get("/this-route-does-not-exist-404")
+    assert response.status_code == 404
+    content = response.get_data(as_text=True)
+    assert "404" in content
+    assert "Return to flight search" in content or "SkyTrack" in content
+
+
+def test_security_headers(client):
+    response = client.get("/")
+    assert response.headers.get("X-Content-Type-Options") == "nosniff"
+    assert response.headers.get("X-Frame-Options") == "SAMEORIGIN"
+    assert "strict-origin-when-cross-origin" in response.headers.get("Referrer-Policy", "")
+    assert "geolocation=()" in response.headers.get("Permissions-Policy", "")
+
+
+def test_radar_status(client):
+    response = client.get("/api/radar/status")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert isinstance(data, dict)
+    assert "status" in data
+    assert data["status"] in ["Active", "Paused", "Error", "Unknown"]
+    assert "status_detail" in data
+    assert "tracked_count" in data
