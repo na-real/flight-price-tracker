@@ -1,0 +1,48 @@
+{
+  "name": "SkyTracker — Flight Intelligence",
+  "short_name": "SkyTracker",
+  "description": "Surreal quiet luxury flight intelligence, multi-provider fare arbitrage, and real-time radar price tracking.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#04060b",
+  "theme_color": "#04060b",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/static/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/logo-primary.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["travel", "productivity", "utilities"],
+  "shortcuts": [
+    {
+      "name": "Search Flights",
+      "url": "/flights",
+      "description": "Explore flight routes and fares"
+    },
+    {
+      "name": "Compare Providers",
+      "url": "/compare",
+      "description": "Multi-provider fare comparison matrix"
+    },
+    {
+      "name": "Radar Tracking",
+      "url": "/tracking",
+      "description": "Real-time automated price alert radar"
+    },
+    {
+      "name": "Appearance Settings",
+      "url": "/settings/appearance",
+      "description": "Customize themes and atmospheres"
+    }
+  ]
+}

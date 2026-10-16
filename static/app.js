@@ -6768,33 +6768,49 @@ initComparisonControls();
 
 function initThemeSystem() {
     const themeToggleBtn = $("themeToggle");
-    const storedTheme = localStorage.getItem("skytrack_theme");
-    // Light theme as the default
-    const activeTheme = storedTheme || "light";
+    const appearancePrefsRaw = localStorage.getItem("skytracker_appearance_prefs");
+    let activeTheme = "signature";
 
-    document.documentElement.setAttribute("data-theme", activeTheme);
+    if (appearancePrefsRaw) {
+        try {
+            const p = JSON.parse(appearancePrefsRaw);
+            if (p && p.theme) activeTheme = p.theme;
+        } catch (e) {}
+    } else {
+        const storedLegacy = localStorage.getItem("skytrack_theme");
+        activeTheme = storedLegacy || "signature";
+    }
+
+    if (!document.documentElement.getAttribute("data-theme")) {
+        document.documentElement.setAttribute("data-theme", activeTheme);
+    }
+
     if (themeToggleBtn) {
         themeToggleBtn.setAttribute(
             "aria-label",
-            `Switch to ${activeTheme === "light" ? "dark" : "light"} theme`
+            `Appearance: ${activeTheme}`
         );
         themeToggleBtn.setAttribute(
             "title",
-            `Switch to ${activeTheme === "light" ? "dark" : "light"} theme`
+            `Appearance: ${activeTheme} (Click to toggle)`
         );
         themeToggleBtn.addEventListener("click", () => {
             const current =
-                document.documentElement.getAttribute("data-theme") || "light";
-            const nextTheme = current === "dark" ? "light" : "dark";
-            document.documentElement.setAttribute("data-theme", nextTheme);
-            localStorage.setItem("skytrack_theme", nextTheme);
+                document.documentElement.getAttribute("data-theme") || "signature";
+            const nextTheme = (current === "signature" || current === "dark") ? "light" : "signature";
+            if (window.SkyTrackerAppearance && window.SkyTrackerAppearance.applyTheme) {
+                window.SkyTrackerAppearance.applyTheme(nextTheme);
+            } else {
+                document.documentElement.setAttribute("data-theme", nextTheme);
+                localStorage.setItem("skytrack_theme", nextTheme);
+            }
             themeToggleBtn.setAttribute(
                 "aria-label",
-                `Switch to ${nextTheme === "light" ? "dark" : "light"} theme`
+                `Appearance: ${nextTheme}`
             );
             themeToggleBtn.setAttribute(
                 "title",
-                `Switch to ${nextTheme === "light" ? "dark" : "light"} theme`
+                `Appearance: ${nextTheme} (Click to toggle)`
             );
         });
     }

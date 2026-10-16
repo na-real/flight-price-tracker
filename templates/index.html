@@ -58,6 +58,45 @@
     <!-- Stylesheets -->
     <link rel="stylesheet" href="/static/style.css">
 
+    <!-- PWA Web App Manifest -->
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#04060b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SkyTracker">
+
+    <!-- Appearance Preferences Synchronous FOUC Prevention -->
+    <script>
+        (function() {
+            try {
+                var p = JSON.parse(localStorage.getItem('skytracker_appearance_prefs') || '{}');
+                if (p.theme) {
+                    document.documentElement.setAttribute('data-theme', p.theme);
+                }
+                if (p.backdropEffect) {
+                    document.documentElement.setAttribute('data-backdrop', p.backdropEffect);
+                }
+                if (p.theme === 'custom' && p.accentColor) {
+                    var c = p.accentColor.trim().replace(/^#/, '');
+                    if (c.length === 3) c = c[0]+c[0]+c[1]+c[1]+c[2]+c[2];
+                    if (/^[0-9A-Fa-f]{6}$/.test(c)) {
+                        var r = parseInt(c.slice(0, 2), 16), g = parseInt(c.slice(2, 4), 16), b = parseInt(c.slice(4, 6), 16);
+                        var hex = '#' + c.toUpperCase();
+                        var root = document.documentElement;
+                        root.style.setProperty('--accent-gold', hex);
+                        root.style.setProperty('--accent', hex);
+                        root.style.setProperty('--accent-gold-dim', 'rgba(' + r + ',' + g + ',' + b + ',0.14)');
+                        root.style.setProperty('--accent-soft', 'rgba(' + r + ',' + g + ',' + b + ',0.14)');
+                        root.style.setProperty('--accent-gold-border', 'rgba(' + r + ',' + g + ',' + b + ',0.35)');
+                        root.style.setProperty('--border-accent', 'rgba(' + r + ',' + g + ',' + b + ',0.35)');
+                        root.style.setProperty('--accent-gold-glow', 'rgba(' + r + ',' + g + ',' + b + ',0.24)');
+                        root.style.setProperty('--accent-subtle', 'rgba(' + r + ',' + g + ',' + b + ',0.08)');
+                    }
+                }
+            } catch (e) {}
+        })();
+    </script>
+
     <!-- External 3D & Chart Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -72,6 +111,7 @@
     <!-- Ethereal Spatial Ambient Canvas & Atmosphere -->
     <div class="spatial-bg-atmosphere" aria-hidden="true">
         <canvas id="heroScene3D" class="hero-scene-3d"></canvas>
+        <canvas id="dynamicBackdropCanvas" class="dynamic-backdrop-canvas"></canvas>
         <div class="cosmic-vignette"></div>
         <div class="aurora-glow glow-1"></div>
         <div class="aurora-glow glow-2"></div>
@@ -126,6 +166,10 @@
                     <a href="/contact" class="nav-link">
                         <span class="nav-index">06</span>
                         <span>Contact</span>
+                    </a>
+                    <a href="/settings/appearance" class="nav-link" title="Appearance & Themes">
+                        <span class="nav-index">07</span>
+                        <span>Settings</span>
                     </a>
                 </div>
 
@@ -215,17 +259,18 @@
                     <a href="/tracking" class="mobile-nav-link">04 // Radar Price Tracking</a>
                     <a href="/about" class="mobile-nav-link">05 // Haute Philosophy</a>
                     <a href="/contact" class="mobile-nav-link">06 // Concierge Desk</a>
+                    <a href="/settings/appearance" class="mobile-nav-link">07 // Appearance & Themes</a>
                     {% if logged_in_user %}
-                    <a href="/dashboard" class="mobile-nav-link">07 // Member Dashboard</a>
+                    <a href="/dashboard" class="mobile-nav-link">08 // Member Dashboard</a>
                     <form method="POST" action="/logout" style="display: block; margin: 0; padding: 0;">
-                        <button type="submit" class="mobile-nav-link" style="background: none; border: none; width: 100%; text-align: left; cursor: pointer; font: inherit; padding: 14px 0;">08 // Sign Out</button>
+                        <button type="submit" class="mobile-nav-link" style="background: none; border: none; width: 100%; text-align: left; cursor: pointer; font: inherit; padding: 14px 0;">09 // Sign Out</button>
                     </form>
                     {% else %}
-                    <a href="/login" class="mobile-nav-link">07 // Member Sign In</a>
-                    <a href="/signup" class="mobile-nav-link">08 // Register Sovereign Account</a>
+                    <a href="/login" class="mobile-nav-link">08 // Member Sign In</a>
+                    <a href="/signup" class="mobile-nav-link">09 // Register Sovereign Account</a>
                     {% endif %}
-                    <a href="/privacy" class="mobile-nav-link">09 // Privacy Manifesto</a>
-                    <a href="/terms" class="mobile-nav-link">10 // Terms of Service</a>
+                    <a href="/privacy" class="mobile-nav-link">10 // Privacy Manifesto</a>
+                    <a href="/terms" class="mobile-nav-link">11 // Terms of Service</a>
                     <div class="mobile-drawer-footer">
                         <span class="drawer-status-dot"></span>
                         <span class="drawer-status-text">RADAR SURVEILLANCE ACTIVE</span>
@@ -1283,13 +1328,100 @@
                     </svg>
                 </a>
             </div>
-        </footer>
+        <!-- =====================================================
+             MOBILE BOTTOM NAVIGATION BAR (FIXED 5 DESTINATIONS)
+        ====================================================== -->
+        <nav class="mobile-bottom-nav" id="mobileBottomNav" aria-label="Mobile Navigation">
+            <a href="/" class="bottom-nav-item active" aria-label="Home">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                </svg>
+                <span class="bottom-nav-label">Home</span>
+            </a>
+            <a href="/flights" class="bottom-nav-item" aria-label="Flights">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"></path>
+                </svg>
+                <span class="bottom-nav-label">Flights</span>
+            </a>
+            <a href="/compare" class="bottom-nav-item" aria-label="Compare">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m16 3 4 4-4 4"></path>
+                    <path d="M20 7H4"></path>
+                    <path d="m8 21-4-4 4-4"></path>
+                    <path d="M4 17h16"></path>
+                </svg>
+                <span class="bottom-nav-label">Compare</span>
+            </a>
+            <a href="/tracking" class="bottom-nav-item" aria-label="Tracking">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 16v5"></path>
+                    <path d="M16 14v7"></path>
+                    <path d="M20 10v11"></path>
+                    <path d="m22 3-8.646 8.646a.5.5 0 0 1-.708 0L9.354 8.354a.5.5 0 0 0-.707 0L2 15"></path>
+                    <path d="M4 18v3"></path>
+                    <path d="M8 14v7"></path>
+                </svg>
+                <span class="bottom-nav-label">Tracking</span>
+            </a>
+            <button type="button" id="mobileNavMoreBtn" class="bottom-nav-item" aria-label="More Options" aria-haspopup="dialog">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="4" y1="12" x2="20" y2="12"></line>
+                    <line x1="4" y1="6" x2="20" y2="6"></line>
+                    <line x1="4" y1="18" x2="20" y2="18"></line>
+                </svg>
+                <span class="bottom-nav-label">More</span>
+            </button>
+        </nav>
+
+        <!-- Slide-Up Drawer for "More" Navigation -->
+        <div id="mobileMoreBackdrop" class="mobile-more-backdrop" aria-hidden="true"></div>
+        <div id="mobileMoreSheet" class="mobile-more-sheet" role="dialog" aria-modal="true" aria-label="More destinations" aria-hidden="true">
+            <div class="sheet-handle" aria-hidden="true"></div>
+            <div class="sheet-header">
+                <span class="sheet-title font-mono">EXPLORE // SKYTRACKER</span>
+                <button type="button" id="mobileMoreCloseBtn" class="sheet-close-btn" aria-label="Close menu">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="sheet-links-grid">
+                <a href="/settings/appearance" class="sheet-nav-link">
+                    <span>Appearance & Personalization</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </a>
+                <a href="/about" class="sheet-nav-link">
+                    <span>Haute Philosophy & About</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </a>
+                <a href="/contact" class="sheet-nav-link">
+                    <span>Concierge Desk</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </a>
+                {% if logged_in_user %}
+                <a href="/dashboard" class="sheet-nav-link">
+                    <span>Member Dashboard</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </a>
+                {% else %}
+                <a href="/login" class="sheet-nav-link">
+                    <span>Sign In / Sovereign Access</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </a>
+                {% endif %}
+            </div>
+        </div>
 
     </div>
 
     <!-- JAVASCRIPT MODULES -->
     <script src="/static/scene3d.js"></script>
     <script src="/static/atmosphere.js"></script>
+    <script src="/static/backdrops.js"></script>
+    <script src="/static/appearance.js"></script>
     <script src="/static/app.js"></script>
 </body>
 

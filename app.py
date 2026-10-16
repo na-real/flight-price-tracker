@@ -24,6 +24,7 @@ import csv
 import os
 import sqlite3
 import sys
+import re
 from urllib.parse import urlsplit
 from datetime import datetime, timezone
 
@@ -37,6 +38,7 @@ from flask import (
     session,
     redirect,
     url_for,
+    make_response,
 )
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -149,6 +151,16 @@ def about_page():
 @app.get("/contact")
 def contact_page():
     return render_template("contact.html", active_page="contact")
+
+
+@app.get("/settings/appearance")
+def appearance_settings_page():
+    return render_template("appearance.html", active_page="settings")
+
+
+@app.get("/settings")
+def settings_page():
+    return redirect(url_for("appearance_settings_page"))
 
 
 @app.post("/api/contact")
@@ -1352,6 +1364,80 @@ def favicon():
         "favicon.ico",
         mimetype="image/vnd.microsoft.icon"
     )
+
+
+# ============================================================
+# PWA MANIFEST & SERVICE WORKER
+# ============================================================
+@app.get("/manifest.webmanifest")
+@app.get("/manifest.json")
+def pwa_manifest():
+    """Serve PWA manifest with correct MIME type."""
+    return send_from_directory(
+        os.path.join(app.root_path, "static"),
+        "manifest.json",
+        mimetype="application/manifest+json"
+    )
+
+
+@app.get("/sw.js")
+def service_worker():
+    """Serve PWA service worker with root scope."""
+    response = make_response(
+        send_from_directory(
+            os.path.join(app.root_path, "static"),
+            "sw.js",
+            mimetype="application/javascript"
+        )
+    )
+    response.headers["Service-Worker-Allowed"] = "/"
+    return response
+
+
+# ============================================================
+# APPEARANCE PREFERENCES API
+# ============================================================
+@app.route("/api/appearance/preferences", methods=["GET", "POST"])
+def api_appearance_preferences():
+    """Get or save client appearance preferences."""
+    allowed_themes = ["signature", "dark", "monochrome", "high-contrast", "midnight", "custom"]
+    allowed_backdrops = ["default", "shape-waves", "aero-shards", "ferrofluid", "gradient-waves", "molten-metal"]
+
+    if request.method == "POST":
+        data = request.get_json(silent=True) or {}
+        theme = data.get("theme")
+        if theme not in allowed_themes:
+            theme = "signature"
+
+        backdrop = data.get("backdropEffect")
+        if backdrop not in allowed_backdrops:
+            backdrop = "default"
+
+        raw_accent = str(data.get("accentColor") or "").strip()
+        if not re.match(r"^#[0-9A-Fa-f]{6}$", raw_accent):
+            accent = "#DFC99E"
+        else:
+            accent = raw_accent.upper()
+
+        reduced_motion = bool(data.get("reducedMotion") is True)
+
+        prefs = {
+            "theme": theme,
+            "backdropEffect": backdrop,
+            "accentColor": accent,
+            "reducedMotion": reduced_motion
+        }
+
+        session["appearance_prefs"] = prefs
+        return jsonify({"success": True, "status": "ok", "preferences": prefs}), 200
+
+    prefs = session.get("appearance_prefs", {
+        "theme": "signature",
+        "backdropEffect": "default",
+        "accentColor": "#DFC99E",
+        "reducedMotion": False
+    })
+    return jsonify({"success": True, "status": "ok", "preferences": prefs}), 200
 
 
 # ============================================================

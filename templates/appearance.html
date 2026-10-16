@@ -1,0 +1,456 @@
+{% extends "base.html" %}
+
+{% block title %}Appearance & Personalization Settings — SkyTracker{% endblock %}
+{% block meta_description %}Customize SkyTracker's visual theme, atmospheric backdrops, and personal accent colors to match your flight surveillance aesthetic.{% endblock %}
+
+{% block extra_head %}
+<!-- PWA Manifest Link -->
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#04060b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SkyTracker">
+{% endblock %}
+
+{% block content %}
+<div class="settings-page-wrapper" id="appearanceSettingsContainer">
+    <div class="settings-container">
+
+        <!-- =====================================================
+             SETTINGS PAGE HEADER
+        ====================================================== -->
+        <header class="settings-header">
+            <div class="settings-header-badge font-mono">
+                <span class="badge-dot"></span>
+                <span>SYSTEM PREFERENCES // APPEARANCE</span>
+            </div>
+            <h1 class="settings-title font-serif">Settings</h1>
+            <p class="settings-subtitle font-sans">Make SkyTracker yours. Personalize your visual theme, atmospheric backdrops, and bespoke accent tones.</p>
+        </header>
+
+        <!-- =====================================================
+             SECTION 1: THEME SELECTION (6 COMPLETE THEMES)
+        ====================================================== -->
+        <section class="settings-section glass-panel" aria-labelledby="themeSectionHeading">
+            <div class="section-header">
+                <div class="section-title-wrap">
+                    <span class="section-number font-mono">01</span>
+                    <div>
+                        <h2 id="themeSectionHeading" class="section-title font-serif">Visual Theme</h2>
+                        <p class="section-desc font-sans">Select the architectural color foundation for your flight surveillance interface.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="theme-grid" role="radiogroup" aria-label="Visual Theme Selection">
+                <!-- Theme 1: SkyTracker Signature -->
+                <div class="theme-card active" data-theme="signature" role="radio" aria-checked="true" tabindex="0">
+                    <div class="theme-card-preview preview-signature">
+                        <div class="mini-app-mockup">
+                            <div class="mini-navbar">
+                                <span class="mini-logo"></span>
+                                <div class="mini-nav-pills">
+                                    <span class="mini-pill"></span>
+                                    <span class="mini-pill"></span>
+                                </div>
+                            </div>
+                            <div class="mini-body">
+                                <div class="mini-card">
+                                    <div class="mini-line w-60"></div>
+                                    <div class="mini-line w-40 accent"></div>
+                                </div>
+                                <div class="mini-btn accent"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="theme-card-content">
+                        <div class="theme-card-header">
+                            <h3 class="theme-name font-serif">SkyTracker Signature</h3>
+                            <span class="theme-card-indicator" aria-hidden="true">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            </span>
+                        </div>
+                        <p class="theme-desc font-sans">The original SkyTracker experience. Obsidian void, warm ivory text, and muted champagne-gold accents.</p>
+                    </div>
+                </div>
+
+                <!-- Theme 2: Dark -->
+                <div class="theme-card" data-theme="dark" role="radio" aria-checked="false" tabindex="0">
+                    <div class="theme-card-preview preview-dark">
+                        <div class="mini-app-mockup">
+                            <div class="mini-navbar">
+                                <span class="mini-logo"></span>
+                                <div class="mini-nav-pills">
+                                    <span class="mini-pill"></span>
+                                    <span class="mini-pill"></span>
+                                </div>
+                            </div>
+                            <div class="mini-body">
+                                <div class="mini-card">
+                                    <div class="mini-line w-60"></div>
+                                    <div class="mini-line w-40 muted"></div>
+                                </div>
+                                <div class="mini-btn muted"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="theme-card-content">
+                        <div class="theme-card-header">
+                            <h3 class="theme-name font-serif">Dark</h3>
+                            <span class="theme-card-indicator" aria-hidden="true"></span>
+                        </div>
+                        <p class="theme-desc font-sans">Clean, neutral, and distraction-free. Charcoal surfaces, soft white text, and minimal visual noise.</p>
+                    </div>
+                </div>
+
+                <!-- Theme 3: Monochrome -->
+                <div class="theme-card" data-theme="monochrome" role="radio" aria-checked="false" tabindex="0">
+                    <div class="theme-card-preview preview-monochrome">
+                        <div class="mini-app-mockup">
+                            <div class="mini-navbar">
+                                <span class="mini-logo"></span>
+                                <div class="mini-nav-pills">
+                                    <span class="mini-pill"></span>
+                                    <span class="mini-pill"></span>
+                                </div>
+                            </div>
+                            <div class="mini-body">
+                                <div class="mini-card">
+                                    <div class="mini-line w-70"></div>
+                                    <div class="mini-line w-30 white"></div>
+                                </div>
+                                <div class="mini-btn white"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="theme-card-content">
+                        <div class="theme-card-header">
+                            <h3 class="theme-name font-serif">Monochrome</h3>
+                            <span class="theme-card-indicator" aria-hidden="true"></span>
+                        </div>
+                        <p class="theme-desc font-sans">Quiet, focused black and white. High typographic contrast, silver borders, and strict grayscale balance.</p>
+                    </div>
+                </div>
+
+                <!-- Theme 4: High Contrast -->
+                <div class="theme-card" data-theme="high-contrast" role="radio" aria-checked="false" tabindex="0">
+                    <div class="theme-card-preview preview-high-contrast">
+                        <div class="mini-app-mockup">
+                            <div class="mini-navbar">
+                                <span class="mini-logo"></span>
+                                <div class="mini-nav-pills">
+                                    <span class="mini-pill"></span>
+                                    <span class="mini-pill"></span>
+                                </div>
+                            </div>
+                            <div class="mini-body">
+                                <div class="mini-card">
+                                    <div class="mini-line w-80 bright"></div>
+                                    <div class="mini-line w-50 gold"></div>
+                                </div>
+                                <div class="mini-btn gold"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="theme-card-content">
+                        <div class="theme-card-header">
+                            <h3 class="theme-name font-serif">High Contrast</h3>
+                            <span class="theme-card-indicator" aria-hidden="true"></span>
+                        </div>
+                        <p class="theme-desc font-sans">Sharper edges and clearer text. Maximum AAA contrast ratios, solid opaque surfaces, and visible focus rings.</p>
+                    </div>
+                </div>
+
+                <!-- Theme 5: Midnight -->
+                <div class="theme-card" data-theme="midnight" role="radio" aria-checked="false" tabindex="0">
+                    <div class="theme-card-preview preview-midnight">
+                        <div class="mini-app-mockup">
+                            <div class="mini-navbar">
+                                <span class="mini-logo"></span>
+                                <div class="mini-nav-pills">
+                                    <span class="mini-pill"></span>
+                                    <span class="mini-pill"></span>
+                                </div>
+                            </div>
+                            <div class="mini-body">
+                                <div class="mini-card">
+                                    <div class="mini-line w-60"></div>
+                                    <div class="mini-line w-40 azure"></div>
+                                </div>
+                                <div class="mini-btn azure"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="theme-card-content">
+                        <div class="theme-card-header">
+                            <h3 class="theme-name font-serif">Midnight</h3>
+                            <span class="theme-card-indicator" aria-hidden="true"></span>
+                        </div>
+                        <p class="theme-desc font-sans">A calmer blue atmosphere. Deep oceanic midnight navy, celestial azure highlights, and silver typography.</p>
+                    </div>
+                </div>
+
+                <!-- Theme 6: Custom Accent -->
+                <div class="theme-card" data-theme="custom" role="radio" aria-checked="false" tabindex="0">
+                    <div class="theme-card-preview preview-custom">
+                        <div class="mini-app-mockup">
+                            <div class="mini-navbar">
+                                <span class="mini-logo"></span>
+                                <div class="mini-nav-pills">
+                                    <span class="mini-pill"></span>
+                                    <span class="mini-pill"></span>
+                                </div>
+                            </div>
+                            <div class="mini-body">
+                                <div class="mini-card">
+                                    <div class="mini-line w-60"></div>
+                                    <div class="mini-line w-40 custom-tint"></div>
+                                </div>
+                                <div class="mini-btn custom-tint"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="theme-card-content">
+                        <div class="theme-card-header">
+                            <h3 class="theme-name font-serif">Custom Accent</h3>
+                            <span class="theme-card-indicator" aria-hidden="true"></span>
+                        </div>
+                        <p class="theme-desc font-sans">Make the interface your own. Applies your chosen accent color across buttons, radars, and highlights.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- =====================================================
+             SECTION 2: BACKDROP EFFECT SELECTOR (6 BACKDROPS)
+        ====================================================== -->
+        <section class="settings-section glass-panel" aria-labelledby="backdropSectionHeading">
+            <div class="section-header">
+                <div class="section-title-wrap">
+                    <span class="section-number font-mono">02</span>
+                    <div>
+                        <h2 id="backdropSectionHeading" class="section-title font-serif">Backdrop Effect</h2>
+                        <p class="section-desc font-sans">Choose the atmosphere behind your SkyTracker experience.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="backdrop-grid" role="radiogroup" aria-label="Atmospheric Backdrop Selection">
+                <!-- Effect A: Default -->
+                <div class="backdrop-card active" data-effect="default" role="radio" aria-checked="true" tabindex="0">
+                    <div class="backdrop-preview-illu preview-bg-default">
+                        <div class="illu-celestial-sphere"></div>
+                        <div class="illu-grid-lines"></div>
+                    </div>
+                    <div class="backdrop-card-body">
+                        <div class="backdrop-header">
+                            <h3 class="backdrop-title font-serif">Default</h3>
+                            <span class="backdrop-card-indicator" aria-hidden="true">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            </span>
+                        </div>
+                        <p class="backdrop-desc font-sans">Standard spatial celestial atmosphere with ambient 3D orbit.</p>
+                    </div>
+                </div>
+
+                <!-- Effect B: Shape Waves -->
+                <div class="backdrop-card" data-effect="shape-waves" role="radio" aria-checked="false" tabindex="0">
+                    <div class="backdrop-preview-illu preview-bg-waves">
+                        <div class="illu-dots-lattice"></div>
+                    </div>
+                    <div class="backdrop-card-body">
+                        <div class="backdrop-header">
+                            <h3 class="backdrop-title font-serif">Shape Waves</h3>
+                            <span class="backdrop-card-indicator" aria-hidden="true"></span>
+                        </div>
+                        <p class="backdrop-desc font-sans">Subtle undulating geometric node lattice gently responding to pointer movement.</p>
+                    </div>
+                </div>
+
+                <!-- Effect C: Aero Shards -->
+                <div class="backdrop-card" data-effect="aero-shards" role="radio" aria-checked="false" tabindex="0">
+                    <div class="backdrop-preview-illu preview-bg-shards">
+                        <div class="illu-shard shard-1"></div>
+                        <div class="illu-shard shard-2"></div>
+                        <div class="illu-shard shard-3"></div>
+                    </div>
+                    <div class="backdrop-card-body">
+                        <div class="backdrop-header">
+                            <h3 class="backdrop-title font-serif">Aero Shards</h3>
+                            <span class="backdrop-card-indicator" aria-hidden="true"></span>
+                        </div>
+                        <p class="backdrop-desc font-sans">Atmospheric field of crystalline particles inspired by aerial navigation and refracted light.</p>
+                    </div>
+                </div>
+
+                <!-- Effect D: Ferrofluid -->
+                <div class="backdrop-card" data-effect="ferrofluid" role="radio" aria-checked="false" tabindex="0">
+                    <div class="backdrop-preview-illu preview-bg-ferro">
+                        <div class="illu-metaball mb-1"></div>
+                        <div class="illu-metaball mb-2"></div>
+                    </div>
+                    <div class="backdrop-card-body">
+                        <div class="backdrop-header">
+                            <h3 class="backdrop-title font-serif">Ferrofluid</h3>
+                            <span class="backdrop-card-indicator" aria-hidden="true"></span>
+                        </div>
+                        <p class="backdrop-desc font-sans">Viscous liquid metallic fluid morphing gracefully with magnetic surface tension.</p>
+                    </div>
+                </div>
+
+                <!-- Effect E: Gradient Waves -->
+                <div class="backdrop-card" data-effect="gradient-waves" role="radio" aria-checked="false" tabindex="0">
+                    <div class="backdrop-preview-illu preview-bg-gradwaves">
+                        <div class="illu-silk-ribbon r-1"></div>
+                        <div class="illu-silk-ribbon r-2"></div>
+                    </div>
+                    <div class="backdrop-card-body">
+                        <div class="backdrop-header">
+                            <h3 class="backdrop-title font-serif">Gradient Waves</h3>
+                            <span class="backdrop-card-indicator" aria-hidden="true"></span>
+                        </div>
+                        <p class="backdrop-desc font-sans">Slow-moving harmonic silk ribbons with smooth transitions between theme hues.</p>
+                    </div>
+                </div>
+
+                <!-- Effect F: Molten Metal -->
+                <div class="backdrop-card" data-effect="molten-metal" role="radio" aria-checked="false" tabindex="0">
+                    <div class="backdrop-preview-illu preview-bg-metal">
+                        <div class="illu-ripple rp-1"></div>
+                        <div class="illu-ripple rp-2"></div>
+                    </div>
+                    <div class="backdrop-card-body">
+                        <div class="backdrop-header">
+                            <h3 class="backdrop-title font-serif">Molten Metal</h3>
+                            <span class="backdrop-card-indicator" aria-hidden="true"></span>
+                        </div>
+                        <p class="backdrop-desc font-sans">Reflective silver and champagne liquid specular highlights with slow ripples.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- =====================================================
+             SECTION 3: CUSTOM COLOUR ACCENT PICKER
+        ====================================================== -->
+        <section class="settings-section glass-panel" aria-labelledby="colorSectionHeading">
+            <div class="section-header">
+                <div class="section-title-wrap">
+                    <span class="section-number font-mono">03</span>
+                    <div>
+                        <h2 id="colorSectionHeading" class="section-title font-serif">Custom Colour</h2>
+                        <p class="section-desc font-sans">Select a curated palette preset or calibrate a bespoke hexadecimal accent tone.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="color-picker-box">
+                <!-- Preset Swatches -->
+                <div class="swatches-label font-mono">CURATED PALETTE PRESETS</div>
+                <div class="preset-swatches-grid" role="radiogroup" aria-label="Accent Color Presets">
+                    <button type="button" class="preset-swatch" data-hex="#00A8FF" style="--swatch-color: #00A8FF;" aria-label="Electric Blue (#00A8FF)" title="Electric Blue">
+                        <span class="swatch-check"></span>
+                    </button>
+                    <button type="button" class="preset-swatch" data-hex="#009688" style="--swatch-color: #009688;" aria-label="Teal (#009688)" title="Teal">
+                        <span class="swatch-check"></span>
+                    </button>
+                    <button type="button" class="preset-swatch" data-hex="#7952E9" style="--swatch-color: #7952E9;" aria-label="Violet (#7952E9)" title="Violet">
+                        <span class="swatch-check"></span>
+                    </button>
+                    <button type="button" class="preset-swatch" data-hex="#C23886" style="--swatch-color: #C23886;" aria-label="Rose (#C23886)" title="Rose">
+                        <span class="swatch-check"></span>
+                    </button>
+                    <button type="button" class="preset-swatch" data-hex="#C77A00" style="--swatch-color: #C77A00;" aria-label="Amber (#C77A00)" title="Amber">
+                        <span class="swatch-check"></span>
+                    </button>
+                    <button type="button" class="preset-swatch" data-hex="#258B50" style="--swatch-color: #258B50;" aria-label="Emerald (#258B50)" title="Emerald">
+                        <span class="swatch-check"></span>
+                    </button>
+                </div>
+
+                <!-- Hex / Native Picker Row -->
+                <div class="custom-hex-controls">
+                    <div class="color-preview-disc" id="customColorPreview" aria-hidden="true"></div>
+
+                    <div class="hex-input-wrapper">
+                        <span class="hex-prefix font-mono">#</span>
+                        <input type="text" id="customHexInput" class="hex-input font-mono" maxlength="7" placeholder="DFC99E" aria-label="Custom Hexadecimal Color Value" spellcheck="false" autocomplete="off">
+                    </div>
+
+                    <!-- Native Picker Trigger -->
+                    <label class="native-picker-label" title="Open native color picker">
+                        <input type="color" id="nativeColorPicker" value="#DFC99E" class="native-color-input" aria-label="Open color palette selector">
+                        <span class="picker-btn-text font-mono">SPECTRUM</span>
+                    </label>
+
+                    <!-- Reset Accent Button -->
+                    <button type="button" id="btnResetAccent" class="btn-subtle-reset font-mono" title="Reset accent color to default champagne gold">
+                        RESET ACCENT
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- =====================================================
+             SECTION 4: RESTORE DEFAULTS
+        ====================================================== -->
+        <section class="settings-section glass-panel" aria-labelledby="restoreSectionHeading">
+            <div class="restore-panel-content">
+                <div class="restore-text">
+                    <h2 id="restoreSectionHeading" class="section-title font-serif" style="font-size: 1.25rem;">Restore Default Appearance</h2>
+                    <p class="section-desc font-sans" style="margin: 4px 0 0 0;">Reverts theme to SkyTracker Signature, resets backdrops to Default, and restores champagne gold accents. User account, searches, and tracking data remain completely untouched.</p>
+                </div>
+                <button type="button" id="btnRestoreDefaults" class="btn-restore-action font-mono" aria-label="Restore Default Appearance">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;">
+                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                        <path d="M3 3v5h5"></path>
+                    </svg>
+                    <span>RESTORE DEFAULTS</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- =====================================================
+             SECTION 5: PWA APPLICATION INSTALLATION
+        ====================================================== -->
+        <section class="settings-section glass-panel" aria-labelledby="pwaSectionHeading">
+            <div class="pwa-install-card">
+                <div class="pwa-app-icon">
+                    <svg width="32" height="32" viewBox="0 0 48 48" fill="none" stroke="currentColor">
+                        <ellipse cx="24" cy="24" rx="19" ry="8.5" transform="rotate(-28 24 24)" stroke="var(--accent-gold, #dfc99e)" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M 33 13 C 26 8, 16 11, 16 19 C 16 26, 32 22, 32 29 C 32 37, 22 40, 15 35" stroke="var(--accent-gold, #dfc99e)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                        <circle cx="34" cy="15" r="2.5" fill="var(--accent-gold, #dfc99e)"/>
+                    </svg>
+                </div>
+                <div class="pwa-content">
+                    <h2 id="pwaSectionHeading" class="section-title font-serif" style="font-size: 1.25rem;">SkyTracker Standalone Experience</h2>
+                    <p class="section-desc font-sans" style="margin: 4px 0 0 0;">Install SkyTracker onto your home screen or dock for instant full-screen flight surveillance, offline flight cache, and fast access.</p>
+                    
+                    <div id="pwaIosGuide" class="pwa-ios-instructions font-sans" style="display: none; margin-top: 10px; font-size: 0.85rem; color: var(--text-secondary);">
+                        To install on iOS: Tap the <strong style="color: var(--text-primary);">Share button</strong> in Safari, then select <strong style="color: var(--text-primary);">'Add to Home Screen'</strong>.
+                    </div>
+                </div>
+                <div class="pwa-actions">
+                    <button type="button" id="pwaInstallBtn" class="btn-pwa-install font-mono" style="display: none;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        <span>INSTALL APP</span>
+                    </button>
+                    <span id="pwaInstallStatus" class="pwa-status-badge font-mono" style="display: none;">
+                        APP INSTALLED ✓
+                    </span>
+                </div>
+            </div>
+        </section>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/backdrops.js"></script>
+<script src="/static/appearance.js"></script>
+{% endblock %}
