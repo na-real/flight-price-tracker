@@ -106,10 +106,10 @@ def run():
                     )
                 )
 
-            # Determine whether this is a new record low
-            is_new_low = (
-                old_lowest is None
-                or current_price < old_lowest
+            # Determine whether this is a confirmed price drop below previous observation
+            is_price_drop = (
+                old_lowest is not None
+                and current_price < old_lowest
             )
 
             # Determine whether target has been reached
@@ -158,15 +158,15 @@ def run():
                 )
 
             # -----------------------------------------
-            # SEND ALERT
+            # SEND ALERT (Only on target reached or verified price decrease)
             # -----------------------------------------
 
-            if is_new_low or reached_target:
+            if reached_target or is_price_drop:
 
                 if reached_target:
                     alert_reason = "TARGET PRICE REACHED"
                 else:
-                    alert_reason = "NEW LOWEST PRICE"
+                    alert_reason = "CONFIRMED FARE DROP"
 
                 subject = (
                     f"Flight Price Alert: "
@@ -174,8 +174,7 @@ def run():
                     f"{flight['arrival']}"
                 )
 
-                if old_lowest is not None:
-                    body = f"""
+                body = f"""
 FLIGHT PRICE ALERT
 
 {alert_reason}
@@ -191,29 +190,14 @@ Current lowest price:
 
 Your target price:
 ₹{flight['target_price']:,.0f}
-
+"""
+                if old_lowest is not None:
+                    body += f"""
 Previous lowest price:
 ₹{old_lowest:,.0f}
-"""
-                else:
-                    body = f"""
-FLIGHT PRICE ALERT
 
-FIRST PRICE RECORDED
-
-Route:
-{flight['departure']} → {flight['arrival']}
-
-Departure:
-{flight['outbound_date']}
-
-Current lowest price:
-₹{current_price:,.0f}
-
-Your target price:
-₹{flight['target_price']:,.0f}
-
-This is the first price recorded for this tracked flight.
+Net fare decrease:
+₹{(old_lowest - current_price):,.0f}
 """
 
                 body += """
@@ -232,7 +216,10 @@ Book soon if this price works for you.
                 print("Alert email sent!")
 
             else:
-                print("No alert needed.")
+                if old_lowest is None:
+                    print("Initial baseline price recorded. No alert dispatched.")
+                else:
+                    print("No alert needed.")
 
             # Once target has been reached,
             # never send another TARGET alert.

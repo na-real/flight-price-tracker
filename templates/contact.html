@@ -1,25 +1,25 @@
 {% extends "base.html" %}
 
-{% block title %}Contact Concierge Desk — SkyTracker{% endblock %}
-{% block meta_description %}Contact the SkyTracker concierge team for route intelligence inquiries, institutional API integrations, and radar price alert assistance.{% endblock %}
+{% block title %}Contact & Inquiries — SkyTracker{% endblock %}
+{% block meta_description %}Contact the SkyTracker team for route intelligence inquiries, price tracking support, and platform feedback.{% endblock %}
 {% block canonical_url %}https://skytrack-flights.onrender.com/contact{% endblock %}
 
 {% block content %}
 <section class="page-hero">
     <div class="page-header">
-        <span class="page-badge font-mono">CONCIERGE & DIPLOMATIC DESK</span>
+        <span class="page-badge font-mono">SUPPORT & INQUIRIES</span>
         <h1 class="page-title">Direct Inquiries & Concierge</h1>
         <p class="page-subtitle">
-            Our flight intelligence specialists and technical team remain in continuous standby. Submit an inquiry below or reach our direct channels.
+            Submit an inquiry below. Every transmission is recorded directly into our operational database for team review.
         </p>
     </div>
 
     <div class="contact-grid">
         <!-- CONCIERGE FORM -->
         <div class="contact-form-card">
-            <h3 class="font-serif" style="font-size: 1.6rem; margin-bottom: 8px;">Transmit a Message</h3>
+            <h3 class="font-serif" style="font-size: 1.6rem; margin-bottom: 8px;">Transmit an Inquiry</h3>
             <p style="font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 28px;">
-                Responses are prioritized and dispatched within 24 operational hours.
+                Inquiries are securely stored in the system database.
             </p>
 
             <form id="contactConciergeForm" autocomplete="off" onsubmit="return false;">
@@ -30,22 +30,21 @@
 
                 <div class="form-group">
                     <label for="contactName" class="form-label">FULL NAME</label>
-                    <input type="text" id="contactName" name="name" class="form-input" placeholder="Lord / Lady / Dr. Surname" required minlength="2" maxlength="100">
+                    <input type="text" id="contactName" name="name" class="form-input" placeholder="Your Full Name" required minlength="2" maxlength="100">
                 </div>
 
                 <div class="form-group">
                     <label for="contactEmail" class="form-label">EMAIL ADDRESS</label>
-                    <input type="email" id="contactEmail" name="email" class="form-input" placeholder="sovereign@domain.com" required value="{{ logged_in_user or '' }}">
+                    <input type="email" id="contactEmail" name="email" class="form-input" placeholder="you@example.com" required value="{{ logged_in_user or '' }}">
                 </div>
 
                 <div class="form-group">
                     <label for="contactSubject" class="form-label">SUBJECT OF TRANSMISSION</label>
                     <select id="contactSubject" name="subject" class="form-select">
-                        <option value="Flight Intelligence & Arbitrage">Flight Intelligence & Arbitrage Inquiry</option>
+                        <option value="Flight Intelligence & Arbitrage">Flight Intelligence & Search Inquiry</option>
                         <option value="Radar Alert Support">Radar Alert & Price Tracking Support</option>
-                        <option value="Institutional API Integration">Institutional & Enterprise API Access</option>
-                        <option value="Data Privacy & Confidentiality">Data Privacy & Confidentiality Matter</option>
-                        <option value="General Concierge">General Inquiries</option>
+                        <option value="Data Privacy & Confidentiality">Data Privacy & Account Inquiries</option>
+                        <option value="General Concierge">General Inquiries & Feedback</option>
                     </select>
                 </div>
 
@@ -57,15 +56,15 @@
                 <div id="contactFormError" class="auth-error-banner" style="display: none;"></div>
 
                 <div id="contactSuccessCard" class="contact-success-card">
-                    <h4 class="font-serif" style="font-size: 1.3rem; margin-bottom: 6px;">Transmission Received</h4>
+                    <h4 class="font-serif" style="font-size: 1.3rem; margin-bottom: 6px;">Inquiry Received</h4>
                     <p style="font-size: 0.88rem; color: var(--text-secondary);" id="contactSuccessMsg">
-                        Your message has been securely received by the SkyTracker Concierge. A specialist will reply shortly.
+                        Your inquiry has been securely recorded. Our team will review your message.
                     </p>
                 </div>
 
                 <button type="submit" id="contactSubmitBtn" class="primary-btn" style="width: 100%; margin-top: 14px;">
                     <span id="contactSpinner" class="btn-loader" style="display: none;"></span>
-                    <span id="contactBtnText">Dispatch Transmission</span>
+                    <span id="contactBtnText">Submit Inquiry</span>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="22" y1="2" x2="11" y2="13"></line>
                         <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
@@ -74,51 +73,43 @@
             </form>
         </div>
 
-        <!-- VERIFIED CONTACT INFORMATION -->
+        <!-- VERIFIED CONTACT & OPERATIONAL INFORMATION -->
         <div class="contact-info-card">
             <div class="contact-info-block">
-                <span class="contact-info-title">DIRECT CONCIERGE</span>
+                <span class="contact-info-title">ELECTRONIC SUPPORT</span>
+                {% if support_email %}
                 <p class="contact-info-value">
-                    <a href="mailto:concierge@skytrack.luxury" class="contact-info-link">concierge@skytrack.luxury</a>
+                    <a href="mailto:{{ support_email }}" class="contact-info-link">{{ support_email }}</a>
                 </p>
-                <span class="font-mono" style="font-size: 0.72rem; color: var(--text-tertiary);">Cryptographically encrypted inquiries</span>
+                <span class="font-mono" style="font-size: 0.72rem; color: var(--text-tertiary);">Configured primary support inbox</span>
+                {% else %}
+                <p class="contact-info-value font-mono" style="font-size: 0.88rem; color: var(--text-secondary);">
+                    Inquiry Form Active
+                </p>
+                <span class="font-mono" style="font-size: 0.72rem; color: var(--text-tertiary);">Direct email unconfigured; submissions recorded to database</span>
+                {% endif %}
             </div>
 
             <div class="contact-info-block">
-                <span class="contact-info-title">WHATSAPP CONCIERGE</span>
-                <p class="contact-info-value">
-                    <a href="https://wa.me/447700900077?text=SkyTracker%20Flight%20Intelligence%20Inquiry" target="_blank" rel="noopener noreferrer" class="contact-info-link" style="display: inline-flex; align-items: center; gap: 6px;">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
-                        </svg>
-                        <span>+44 7700 900077 (Concierge Desk)</span>
-                    </a>
-                </p>
-                <span class="font-mono" style="font-size: 0.72rem; color: var(--text-tertiary);">Direct encrypted messaging</span>
-            </div>
-
-            <div class="contact-info-block">
-                <span class="contact-info-title">RADAR OPERATIONS DESK</span>
+                <span class="contact-info-title">BACKGROUND RADAR CYCLE</span>
                 <p class="contact-info-value font-mono">
-                    Continuous 24/7 UTC
+                    Periodic 6-Hour Cycle (UTC)
                 </p>
-                <span class="font-mono" style="font-size: 0.72rem; color: var(--text-tertiary);">Zero interruption automated surveillance</span>
+                <span class="font-mono" style="font-size: 0.72rem; color: var(--text-tertiary);">Automated price checks scheduled via Render cron</span>
             </div>
 
             <div class="contact-info-block">
-                <span class="contact-info-title">GLOBAL HEADQUARTERS</span>
-                <p class="contact-info-value font-serif" style="font-size: 1.1rem;">
-                    SkyTracker Sovereign Suite<br>
-                    Terminal 2 Aviation Pavilion<br>
-                    International Departure Boulevard
+                <span class="contact-info-title">OPERATIONAL ARCHITECTURE</span>
+                <p class="contact-info-value" style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.6;">
+                    Independent flight intelligence aggregator querying live Google Flights via SerpAPI when configured, combined with direct carrier portals.
                 </p>
             </div>
 
             <div class="contact-info-block">
-                <span class="contact-info-title">ENTERPRISE TELEMETRY</span>
-                <p class="contact-info-value font-mono" style="font-size: 0.82rem;">
-                    B2B GDS Arbitrage Feed · REST/WebSocket<br>
-                    <a href="mailto:api@skytrack.luxury" class="contact-info-link">api@skytrack.luxury</a>
+                <span class="contact-info-title">DATA GOVERNANCE</span>
+                <p class="contact-info-value font-mono" style="font-size: 0.82rem; color: var(--text-secondary);">
+                    PostgreSQL / SQLite · Zero Tracking Cookies<br>
+                    <a href="/privacy" class="contact-info-link">View Privacy Manifesto</a>
                 </p>
             </div>
         </div>
@@ -185,19 +176,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = await res.json();
             if (res.ok && data.success) {
-                successMsg.textContent = data.message || 'Your transmission has been securely logged with the SkyTracker Concierge.';
+                successMsg.textContent = data.message || 'Your inquiry has been securely recorded.';
                 successCard.classList.add('active');
                 form.reset();
             } else {
-                errorBanner.textContent = data.error || 'Failed to dispatch inquiry. Please check parameters.';
+                errorBanner.textContent = data.error || 'Failed to submit inquiry. Please check parameters.';
                 errorBanner.style.display = 'flex';
             }
         } catch {
-            errorBanner.textContent = 'Network communication failure. Please retry or email concierge directly.';
+            errorBanner.textContent = 'Network communication failure. Please retry shortly.';
             errorBanner.style.display = 'flex';
         } finally {
             btnSpinner.style.display = 'none';
-            btnText.textContent = 'Dispatch Transmission';
+            btnText.textContent = 'Submit Inquiry';
             submitBtn.disabled = false;
         }
     });

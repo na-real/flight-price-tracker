@@ -1,261 +1,183 @@
-# ✈️ SkyTrack — Flight Price Tracker
+# SkyTracker — Flight Price Tracker
 
-![Live Demo](https://img.shields.io/badge/Live-Demo-success?style=for-the-badge)
-![GitHub](https://img.shields.io/badge/GitHub-Repository-black?style=for-the-badge&logo=github)
+A full-stack flight intelligence and price-tracking application built with Flask, PostgreSQL, and JavaScript.
 
-A full-stack flight price tracking application built with Flask and JavaScript.
+SkyTracker enables travelers to discover flights, compare fares across direct airline portals and aggregators, monitor route price trajectories, and receive automated email alerts when fares drop or achieve target thresholds.
 
-SkyTrack lets users search flights, compare prices, track specific routes, view price history, and receive email alerts when prices drop or reach a target price.
+## Features
 
-## ✨ Features
+- Multi-source flight search across domestic and international IATA hubs
+- One-way, round-trip, and multi-city route search
+- Canonical airport resolution with city aliases (e.g., Bombay/Mumbai, Madras/Chennai)
+- Multi-provider comparison matrix across direct airline channels and aggregators
+- Autonomous price radar tracking with custom target thresholds
+- Confirmed price-drop detection and threshold alerts
+- Historical price observation chronicles
+- Periodic background checker execution (6-hour Render cron schedule)
+- Configurable electronic support and persisted contact desk
+- Strict data-status disclosure (live provider fares vs. demonstration benchmarks)
+- Surreal Quiet Luxury dark aesthetic (Obsidian Noir, champagne gold, restrained motion)
+- Defense-in-depth security (production secret key enforcement, parameterized SQL, rate limiting, anti-bot honeypots, secure session cookies)
 
-- ✈️ Search flights using airport codes
-- 🔄 One-way and round-trip searches
-- 🛫 Connecting flight and layover information
-- 📍 Nearby airport search
-- 💰 Sort and compare flight prices
-- 🔔 Track flights with target price alerts
-- 📉 New lowest-price alerts
-- 📊 Historical price charts
-- 📧 Email notifications
-- ⏰ Automated hourly price checking
-- 🔐 Environment-based secret management
-- 🗄️ Persistent PostgreSQL database
-- 🧪 Automated tests with pytest
-- ⚙️ GitHub Actions CI/CD
-- 🚀 Production deployment with Gunicorn
-
-
-
-## 🛠️ Tech Stack
-
-
+## Tech Stack
 
 ### Backend
-
-- Python
-- Flask
-- Gunicorn
-- SerpAPI
-- PostgreSQL
-- Supabase
-
-
+- Python 3.13+
+- Flask & Gunicorn
+- Google Flights via SerpAPI
+- PostgreSQL (Production) / SQLite (Local development)
+- SMTP via TLS (Gmail or custom relay)
 
 ### Frontend
+- HTML5 & Semantic Web Components
+- Vanilla CSS with CSS custom property design system
+- Vanilla JavaScript (ES6+ modular architecture)
+- WebGL & procedural celestial background canvases
 
-- HTML
-- CSS
-- JavaScript
-- Chart.js
-
-
-
-### Testing & Automation
-
-- pytest
-- GitHub Actions
-- GitHub Actions Scheduled Workflows
-
-
+### Testing & Verification
+- pytest (Unit, integration, route, security, and comparison suites)
+- Node.js test scripts for frontend state and template validation
+- GitHub Actions CI
 
 ### Deployment
+- Render Web Service (`gunicorn -w 2 -b 0.0.0.0:$PORT app:app`)
+- Render Cron Job (`0 */6 * * *` executing `checker.py`)
+- Persistent PostgreSQL (`DATABASE_URL`)
 
-- Render
-- Supabase PostgreSQL
-
-
-
-## 🏗️ Architecture
+## Architecture
 
 ```mermaid
 flowchart TD
-    U[User] --> F[SkyTrack Frontend]
-    F --> R[Render + Gunicorn]
-    R --> A[Flask Backend]
+    U[User / Browser] --> F[SkyTracker Frontend]
+    F --> R[Render Reverse Proxy]
+    R --> G[Gunicorn WSGI]
+    G --> A[Flask Application]
 
-    A --> S[SerpAPI]
-    A --> DB[(Supabase PostgreSQL)]
+    A --> S[SerpAPI / Google Flights]
+    A --> P[Provider Aggregator / Direct Channels]
+    A --> DB[(PostgreSQL Database)]
 
-    G[GitHub Actions<br/>Hourly Checker] --> S
-    G --> DB
-    G --> E[Gmail SMTP<br/>Price Alerts]
+    C[Background Checker Cron<br/>Every 6 Hours] --> S
+    C --> DB
+    C --> E[SMTP Relay<br/>Price Drop Alerts]
 ```
 
+## Data Flow
 
+1. **User Search**: The user enters an origin, destination, travel dates, passenger counts, and cabin class.
+2. **Validation**: The backend canonicalizes IATA codes, verifies date sequences, and enforces origin != destination.
+3. **Live Query**: Live Google Flights results are retrieved via SerpAPI when configured. If unconfigured or quota-exhausted, demonstration benchmarks are returned with clear truthfulness disclosures.
+4. **Comparison**: Reference itineraries are matched against direct carrier channels and authorized aggregator rate estimates.
+5. **Radar Tracking**: Tracked routes are persisted with target thresholds.
+6. **Background Surveillance**: `checker.py` runs periodically (every 6 hours). Verified price drops or reached target thresholds dispatch email alerts. Initial price observations are recorded as baselines without triggering false alerts.
 
-
-
-## 🔄 Data Flow
-
-1. **User** searches for a flight through the SkyTrack frontend.
-2. **Flask Backend** processes the request.
-3. **SerpAPI** retrieves current flight information and prices.
-4. **Supabase PostgreSQL** stores tracked flights and price history.
-5. **GitHub Actions** runs `checker.py` automatically every hour.
-6. **Gmail SMTP** sends an alert when the target price is reached.
-
-
-
-## 📸 Preview
-
-![SkyTrack Preview](skytrack-preview.png)
-
-## 📂 Project Structure
+## Project Structure
 
 ```text
 flight-price-tracker/
-│
-├── app.py
-├── checker.py
-├── db.py
-├── validation.py
-├── requirements.txt
-├── render.yaml
-├── README.md
-├── skytrack-preview.png
-│
-├── data/
-│   └── airports.csv
-│
-├── services/
-│   ├── airports.py
-│   └── flight_api.py
-│
-├── static/
-│   ├── app.js
-│   └── style.css
-│
-├── templates/
-│   └── index.html
-│
-├── tests/
-│   ├── test_airports.py
-│   ├── test_db.py
-│   ├── test_flight_api.py
-│   ├── test_routes.py
-│   └── test_validation.py
-│
-└── .github/
-    └── workflows/
-        ├── ci.yml
-        └── flight-checker.yml
+|-- app.py                    # Flask application routes, API endpoints, rate limits
+|-- checker.py                # Periodic background price radar checker and email dispatcher
+|-- db.py                     # Database connection and non-destructive schema migrations
+|-- security.py               # Security headers, rate limiting, CSRF tokens, honeypots
+|-- validation.py             # Airport, date, passenger, and itinerary validation rules
+|-- requirements.txt          # Production Python dependencies
+|-- render.yaml               # Infrastructure-as-code specification for Render
+|-- README.md                 # Project documentation and truthfulness manifesto
+|
+|-- data/
+|   `-- airports.csv          # Global airport dataset with IATA codes and coordinates
+|
+|-- services/
+|   |-- airports.py           # Airport database index, Haversine distance, city aliases
+|   |-- flight_api.py         # SerpAPI client, itinerary normalization, demo benchmarks
+|   `-- providers/
+|       |-- base.py           # BaseFlightProvider, FlightOffer dataclass, data status contract
+|       |-- aggregator.py     # Multi-provider comparison coordinator and itinerary matching
+|       |-- serpapi_provider.py # Google Flights live provider
+|       |-- direct_airline_provider.py # Direct carrier booking channel adapter
+|       |-- expedia_provider.py # Expedia partner provider adapter
+|       `-- ota_partner_provider.py # MakeMyTrip, Cleartrip, EaseMyTrip partner adapter
+|
+|-- static/
+|   |-- app.js                # Search console, autocomplete, comparison, tracking logic
+|   |-- appearance.js         # Theme selection, custom accent colors, preference persistence
+|   |-- backdrops.js          # Procedural WebGL atmospheric backdrops
+|   |-- style.css             # Surreal Quiet Luxury design system and responsive layout
+|   |-- manifest.json         # PWA installation manifest
+|   `-- sw.js                 # Service worker caching static assets with zero telemetry
+|
+|-- templates/
+|   |-- base.html             # Common shell, navigation, appearance bootstrap, footer
+|   |-- index.html            # Main search sanctum, horizons, price watch console
+|   |-- flights.html          # Standalone flight search and results explorer
+|   |-- compare.html          # Multi-provider comparison matrix
+|   |-- tracking.html         # Price radar dashboard and alert management
+|   |-- appearance.html       # Appearance & personalization settings
+|   |-- contact.html          # Secure inquiry form and operational status
+|   |-- about.html            # Product manifesto and architectural standards
+|   |-- privacy.html          # Privacy policy and data ownership guarantees
+|   `-- terms.html            # Terms of service and disclaimer of booking liability
+|
+|-- tests/
+|   |-- test_advanced_search.py
+|   |-- test_airports.py
+|   |-- test_appearance.py
+|   |-- test_db.py
+|   |-- test_exact_comparison_flow.py
+|   |-- test_flight_api.py
+|   |-- test_price_comparison.py
+|   |-- test_routes.py
+|   |-- test_search_flow.py
+|   |-- test_security.py
+|   `-- test_validation.py
+|
+`-- .github/
+    `-- workflows/
+        |-- ci.yml            # Automated pytest test pipeline
+        `-- flight-checker.yml # Optional scheduled GitHub Actions workflow
 ```
 
+## Production Deployment
 
+SkyTracker is designed for deployment on Render:
 
-## 🚀 Deployment
+- **Web Service**: Gunicorn WSGI server (`gunicorn -w 2 -b 0.0.0.0:$PORT app:app`)
+- **Background Worker**: Render Cron Job running `python checker.py` on a `0 */6 * * *` schedule (every 6 hours).
+- **Database**: Managed PostgreSQL (`DATABASE_URL`). The application requires PostgreSQL in production; silent fallback to ephemeral SQLite is blocked.
 
-SkyTrack is deployed using:
+### Environment Configuration
 
-- **Render** — Web application served via Gunicorn (`gunicorn -w 2 -b 0.0.0.0:$PORT app:app`) and scheduled background price checker
-- **Managed PostgreSQL (Supabase / Render Postgres)** — Mandatory persistent database in production. Container filesystems on Render are ephemeral, so SQLite (`flights.db`) is strictly for local development and testing; all production persistence requires `DATABASE_URL`.
-- **Gmail SMTP** — Email price drop alerts via TLS port 587
+| Variable | Requirement | Description |
+|---|---|---|
+| `SECRET_KEY` | Mandatory in production | High-entropy secret for secure session cookie signing |
+| `DATABASE_URL` | Mandatory in production | PostgreSQL connection URI with SSL (`sslmode=require`) |
+| `FLASK_ENV` | Optional | Set to `production` in live environments |
+| `SERPAPI_KEY` | Optional | SerpAPI key for live Google Flights queries (demo mode active if omitted) |
+| `SUPPORT_EMAIL` | Optional | Verified recipient email address for support communications |
+| `SMTP_HOST` | Optional | SMTP mail server hostname for price alerts |
+| `SMTP_PORT` | Optional | SMTP port (typically `587`) |
+| `SMTP_USERNAME` | Optional | SMTP account username / email address |
+| `SMTP_PASSWORD` | Optional | SMTP account password or app-specific token |
 
-### Live Application
+## Testing
 
-[https://flight-price-tracker-30xk.onrender.com](https://flight-price-tracker-30xk.onrender.com)
+Run the complete test suite locally:
 
-## 🧪 Testing
-
-The project includes automated tests using pytest.
-
-Run the tests locally:
-
-```bash
-python -m pytest
+```powershell
+.venv\Scripts\python.exe -m pytest tests/
 ```
 
-The test suite covers:
+Run frontend JavaScript test suites:
 
-- Airport services
-- Database functionality
-- Flight API
-- Flask routes
-- Input validation
-
-## 🔐 Environment Variables
-
-The application uses environment variables for sensitive credentials:
-
-```text
-SECRET_KEY       # Mandatory in production (64-character random hex string)
-DATABASE_URL     # Mandatory in production (PostgreSQL connection URI with SSL)
-SERPAPI_KEY      # Google Flights search API key
-SMTP_HOST        # SMTP host (e.g. smtp.gmail.com)
-SMTP_PORT        # SMTP port (e.g. 587)
-SMTP_USERNAME    # SMTP sender email address
-SMTP_PASSWORD    # SMTP app-specific password
+```powershell
+node tests/test_frontend_appearance.js
+node tests/test_frontend_search_flow.js
+node tests/test_swap_simulation.js
 ```
 
-Secrets are never stored directly in the source code. In production, missing or weak `SECRET_KEY` values immediately abort application startup.
+## Security & Privacy Commitments
 
-## ⚙️ Automated Price Checking
-
-GitHub Actions runs `checker.py` automatically every hour.
-
-The checker:
-
-1. Retrieves tracked flights from the database.
-2. Searches for the latest flight price.
-3. Updates the price history.
-4. Updates the lowest/current price.
-5. Sends an email alert when the target price is reached.
-
-
-
-## 📈 Price Tracking
-
-For each tracked flight, SkyTrack stores:
-
-- Departure airport
-- Arrival airport
-- Outbound date
-- Return date
-- Target price
-- Current price
-- Lowest price
-- Price history
-- Tracking timestamp
-
-This allows users to monitor how flight prices change over time.
-
-## 🔔 Price Alerts
-
-Users can set a target price for a tracked flight.
-
-When the checker detects that the flight price has reached the target, SkyTrack can send an email notification through Gmail SMTP.
-
-## 🔒 Security
-
-Sensitive credentials are managed through environment variables and GitHub Actions secrets.
-
-The repository does not store:
-
-- API keys
-- Database passwords
-- SMTP passwords
-- Other private credentials
-
-
-
-## 🤝 Project Goals
-
-SkyTrack was built to demonstrate practical full-stack development skills, including:
-
-- REST API integration
-- Backend development with Flask
-- Frontend development with JavaScript
-- Database design and persistence
-- Automated testing
-- CI/CD
-- Scheduled background processing
-- Email automation
-- Cloud deployment
-- Environment-based configuration
-
-
-
-## 📄 License
-
-This project is available for educational and portfolio purposes.
+- **Zero Tracking Cookies**: No marketing pixels, behavioral telemetry, or commercial tracking scripts.
+- **Data Minimization**: Radar alerts retain only the route, target threshold, and notification email address.
+- **Immediate Purge**: Users can delete tracked itineraries at any time using their deletion token or dashboard controls.
+- **Truthful Data Status**: Demonstration benchmarks and estimated fares are explicitly distinguished from live provider prices.

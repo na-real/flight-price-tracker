@@ -1294,32 +1294,36 @@
                     </ul>
                 </div>
 
-                <!-- Col 4: Verified Concierge Contact -->
+                <!-- Col 4: Verified Support & Operational Details -->
                 <div class="footer-links-col">
-                    <span class="footer-col-title font-mono">CONCIERGE & TELEMETRY</span>
+                    <span class="footer-col-title font-mono">SUPPORT & RADAR</span>
                     <div class="footer-contact-details font-mono">
                         <p class="footer-contact-item">
-                            <span class="contact-label">ENQUIRIES:</span>
-                            <a href="mailto:concierge@skytrack.luxury" class="contact-value">concierge@skytrack.luxury</a>
+                            <span class="contact-label">SUPPORT:</span>
+                            {% if support_email %}
+                            <a href="mailto:{{ support_email }}" class="contact-value">{{ support_email }}</a>
+                            {% else %}
+                            <a href="/contact" class="contact-value">Direct Inquiry Desk</a>
+                            {% endif %}
                         </p>
                         <p class="footer-contact-item">
-                            <span class="contact-label">DIRECT DESK:</span>
-                            <a href="tel:+447700900077" class="contact-value">+44 7700 900077</a>
+                            <span class="contact-label">CYCLE:</span>
+                            <span class="contact-value">Periodic 6h Radar</span>
                         </p>
                         <p class="footer-contact-item">
-                            <span class="contact-label">TELEMETRY:</span>
-                            <span class="contact-value">GDS & Multi-OTA Feeds</span>
+                            <span class="contact-label">INVENTORY:</span>
+                            <span class="contact-value">Direct & Meta Channels</span>
                         </p>
                         <p class="footer-contact-item">
-                            <span class="contact-label">SERVICE DESK:</span>
-                            <span class="contact-value text-success">Online Inquiries Monitored</span>
+                            <span class="contact-label">STATUS:</span>
+                            <span class="contact-value text-success">Inquiry Desk Active</span>
                         </p>
                     </div>
                 </div>
             </div>
 
             <div class="footer-bottom-bar font-mono">
-                <span class="copyright">&copy; {{ current_year }} SKYTRACKER ARCHIVE. LIVE MULTI-PROVIDER ARBITRAGE.</span>
+                <span class="copyright">&copy; {{ current_year }} SKYTRACKER ARCHIVE. FLIGHT PRICE INTELLIGENCE & RADAR.</span>
                 <span class="colophon">NO COOKIES TRACKED · PRIVACY INVIOLABLE</span>
                 <a href="#hero" class="back-to-top-btn" aria-label="Back to top">
                     <span>TOP</span>

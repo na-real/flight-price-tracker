@@ -2618,7 +2618,7 @@ async function renderFlightResults(flights) {
 
 
                 /* ---------------------------------------------
-                   CHEAPEST BADGE
+                   CHEAPEST BADGE & DATA STATUS BADGE
                 --------------------------------------------- */
 
                 const cheapestBadge =
@@ -2629,6 +2629,10 @@ async function renderFlightResults(flights) {
                             </div>
                           `
                         : "";
+
+                const statusBadge = (flight.is_simulated || flight.data_status === "demonstration")
+                    ? `<span class="data-status-badge demo-badge font-mono" title="Live SerpAPI unconfigured. Benchmark fare displayed.">DEMONSTRATION FARE</span>`
+                    : `<span class="data-status-badge live-badge font-mono" title="Live verified fare via SerpAPI">LIVE VERIFIED FARE</span>`;
 
 
                 /* ---------------------------------------------
@@ -2649,7 +2653,10 @@ async function renderFlightResults(flights) {
 
                         <div class="flight-main">
 
-                            ${cheapestBadge}
+                            <div class="badges-row" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px;">
+                                ${cheapestBadge}
+                                ${statusBadge}
+                            </div>
 
 
                             <div class="trip-type-badge">
@@ -2713,11 +2720,17 @@ async function renderFlightResults(flights) {
 
 
     /* =========================================================
-       INSERT CARDS
+       INSERT CARDS & DATA TRANSPARENCY BANNER
     ========================================================= */
 
-    resultsEl.innerHTML =
-        cards.join("");
+    const hasSimulated = flights.some(f => f.is_simulated || f.data_status === "demonstration");
+    const disclosureHtml = hasSimulated
+        ? `<div class="data-source-disclosure-banner font-mono" style="margin-bottom: 20px; padding: 12px 18px; border-radius: var(--radius-md); background: rgba(223, 201, 158, 0.05); border: 1px solid var(--accent-gold-border); font-size: 0.74rem; color: var(--text-secondary); line-height: 1.5;">
+            <span class="text-gold" style="font-weight: 700; letter-spacing: 0.08em;">DATA TRANSPARENCY:</span> Demonstration flight benchmarks displayed (Live SerpAPI credentials unconfigured). Fares represent simulated market models, not confirmed bookable carrier inventory.
+           </div>`
+        : "";
+
+    resultsEl.innerHTML = disclosureHtml + cards.join("");
 
     /* =========================================================
        COMPARE FLIGHT BUTTONS

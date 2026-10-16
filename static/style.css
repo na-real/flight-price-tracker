@@ -7366,3 +7366,29 @@ body.luxury-experience {
         animation: none !important;
     }
 }
+
+/* ============================================================
+   DATA STATUS & TRUTHFULNESS BADGES
+   ============================================================ */
+.data-status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.data-status-badge.demo-badge {
+    background: rgba(223, 201, 158, 0.08);
+    color: var(--accent-gold);
+    border: 1px solid var(--accent-gold-border);
+}
+
+.data-status-badge.live-badge {
+    background: rgba(74, 222, 128, 0.08);
+    color: #4ade80;
+    border: 1px solid rgba(74, 222, 128, 0.25);
+}

@@ -33,6 +33,10 @@ class FlightOffer:
     segments: List[Dict[str, Any]] = field(default_factory=list)
     layovers: List[Dict[str, Any]] = field(default_factory=list)
     itinerary_key: str = ""
+    is_live: bool = False
+    is_estimated: bool = True
+    data_status: str = "estimated"  # "live", "estimated", "demonstration"
+    source: str = ""
 
     def __post_init__(self):
         # Generate itinerary_key if not explicitly provided

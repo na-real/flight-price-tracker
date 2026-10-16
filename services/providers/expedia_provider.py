@@ -87,6 +87,10 @@ class ExpediaFlightProvider(BaseFlightProvider):
                 baggage="Cabin: 7 kg • Check-in: 15 kg (Estimated Fare)",
                 segments=flight.get("segments") or [],
                 layovers=flight.get("layovers") or [],
+                is_live=False,
+                is_estimated=True,
+                data_status="estimated",
+                source="Expedia Partner Portal (Estimated Fare)"
             )
             offers.append(offer)
 

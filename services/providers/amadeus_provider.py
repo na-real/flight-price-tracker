@@ -165,7 +165,11 @@ class AmadeusFlightProvider(BaseFlightProvider):
                     currency="INR",
                     baggage="Standard allowance included",
                     booking_url="https://amadeus.com",
-                    trip_type="round_trip" if return_date else "one_way"
+                    trip_type="round_trip" if return_date else "one_way",
+                    is_live=True,
+                    is_estimated=False,
+                    data_status="live",
+                    source="Amadeus GDS"
                 )
                 offers.append(offer)
 

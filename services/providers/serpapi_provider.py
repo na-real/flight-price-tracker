@@ -144,7 +144,11 @@ class SerpApiFlightsProvider(BaseFlightProvider):
                         currency="INR",
                         baggage="Cabin: 7 kg included",
                         booking_url=self._build_deep_link(departure, arrival, outbound_date),
-                        trip_type="round_trip" if return_date else "one_way"
+                        trip_type="round_trip" if return_date else "one_way",
+                        is_live=True,
+                        is_estimated=False,
+                        data_status="live",
+                        source="Google Flights via SerpAPI"
                     )
                     offers.append(base_offer)
 
@@ -172,7 +176,11 @@ class SerpApiFlightsProvider(BaseFlightProvider):
                             currency="INR",
                             baggage="Cabin: 7 kg included",
                             booking_url=b_url or self._build_deep_link(departure, arrival, outbound_date),
-                            trip_type="round_trip" if return_date else "one_way"
+                            trip_type="round_trip" if return_date else "one_way",
+                            is_live=True,
+                            is_estimated=False,
+                            data_status="live",
+                            source=f"{b_partner} via SerpAPI"
                         )
                         offers.append(partner_offer)
 

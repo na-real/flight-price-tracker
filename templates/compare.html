@@ -94,11 +94,11 @@
     <div id="arbitrageBanner" class="glass-panel" style="display: none; padding: 22px 28px; border-radius: var(--radius-lg); border-color: var(--accent-gold-border); margin-bottom: 32px; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; background: rgba(223, 201, 158, 0.05);">
         <div>
             <span class="font-mono text-gold" style="font-size: 0.68rem; letter-spacing: 0.12em;">MAXIMUM SPREAD IDENTIFIED</span>
-            <h3 class="font-serif" id="arbitrageHeadline" style="font-size: 1.4rem; color: var(--text-primary); margin-top: 4px;">Save up to ₹2,800 on this trajectory</h3>
+            <h3 class="font-serif" id="arbitrageHeadline" style="font-size: 1.4rem; color: var(--text-primary); margin-top: 4px;">—</h3>
         </div>
         <div style="text-align: right;">
             <span class="font-mono" style="font-size: 0.65rem; color: var(--text-tertiary); display: block;">LOWEST QUOTED FARE</span>
-            <div class="font-mono text-gold" id="lowestProviderQuote" style="font-size: 1.8rem; font-weight: 700;">₹4,250</div>
+            <div class="font-mono text-gold" id="lowestProviderQuote" style="font-size: 1.8rem; font-weight: 700;">—</div>
         </div>
     </div>
 
@@ -304,6 +304,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const outboundDate = document.getElementById('compareDate').value;
 
         if (!origin || !destination || !outboundDate) return;
+
+        if (origin === destination) {
+            const tableBody = document.getElementById('comparisonTableBody');
+            const arbitrageBanner = document.getElementById('arbitrageBanner');
+            const filterBar = document.getElementById('compareFilterBar');
+            tableBody.innerHTML = `<tr><td colspan="6" style="padding: 40px; text-align: center; color: var(--danger);">Departure and arrival airports cannot be identical.</td></tr>`;
+            if (arbitrageBanner) arbitrageBanner.style.display = 'none';
+            if (filterBar) filterBar.style.display = 'none';
+            return;
+        }
 
         const btnSpinner = document.getElementById('compareBtnSpinner');
         const btnText = document.getElementById('compareBtnText');

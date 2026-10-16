@@ -108,6 +108,18 @@ def resolve_airport_code(value, field_name="Airport code"):
     raise ValueError(f"{field_name} must be a valid 3-letter IATA airport code (e.g. DEL, LHR).")
 
 
+def validate_airport_pair(departure, arrival):
+    """
+    Validate that departure and arrival airports are resolvable and not identical.
+    Returns (canonical_departure, canonical_arrival).
+    """
+    dep = resolve_airport_code(departure, "Departure airport")
+    arr = resolve_airport_code(arrival, "Arrival airport")
+    if dep == arr:
+        raise ValueError("Departure and arrival airports cannot be identical.")
+    return dep, arr
+
+
 def validate_date_iso(date_str, field_name="Date", allow_past=False):
     """Validate that date_str is in YYYY-MM-DD format and not in the past."""
     from datetime import datetime, date

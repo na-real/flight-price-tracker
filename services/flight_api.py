@@ -1397,7 +1397,9 @@ def _normalize_itinerary(itinerary):
         "departure_token": itinerary.get("departure_token", ""),
         "booking_token": itinerary.get("booking_token", ""),
         "is_simulated": False,
-        "is_live": True
+        "is_live": True,
+        "data_status": "live",
+        "source": "Google Flights via SerpAPI"
     }
 
 def _serpapi_request(params):
@@ -1492,7 +1494,9 @@ def search_flights(departure, arrival, outbound_date, return_date=None, travel_c
                     "id": "NAG", "name": "Nagpur Airport", "duration": 45, "overnight": False
                 }],
                 "is_simulated": True,
-                "is_live": False
+                "is_live": False,
+                "data_status": "demonstration",
+                "source": "Demonstration Data (Live SerpAPI Unconfigured)"
             }
             if not return_date:
                 demo_list.append(out_leg)
@@ -1527,6 +1531,8 @@ def search_flights(departure, arrival, outbound_date, return_date=None, travel_c
                     "reference_separate_total": item["price"] * 2,
                     "is_simulated": True,
                     "is_live": False,
+                    "data_status": "demonstration",
+                    "source": "Demonstration Data (Live SerpAPI Unconfigured)"
                 })
         return sorted(demo_list, key=lambda f: f["price"])
 
@@ -1659,9 +1665,15 @@ def search_flights(departure, arrival, outbound_date, return_date=None, travel_c
                 "return_departure_airport": return_leg["departure_airport"],
                 "return_arrival_airport": return_leg["arrival_airport"],
                 "return_segments": return_leg["segments"], "return_layovers": return_leg["layovers"],
-                "departure_token": token, "booking_token": return_raw.get("booking_token", ""),"reference_outbound_price": reference_outbound_price,
+                "departure_token": token,
+                "booking_token": return_raw.get("booking_token", ""),
+                "reference_outbound_price": reference_outbound_price,
                 "reference_return_price": reference_return_price,
                 "reference_separate_total": reference_separate_total,
+                "is_simulated": False,
+                "is_live": True,
+                "data_status": "live",
+                "source": "Google Flights via SerpAPI"
             })
 
     return sorted(results, key=lambda f: f["price"])
@@ -1798,7 +1810,9 @@ def search_multi_city_flights(
             "passengers": passenger_count,
             "travel_class": travel_class,
             "is_simulated": True,
-            "is_live": False
+            "is_live": False,
+            "data_status": "demonstration",
+            "source": "Demonstration Data (Multi-City Route Intelligence)"
         })
 
     return sorted(combined_itineraries, key=lambda f: f["price"])

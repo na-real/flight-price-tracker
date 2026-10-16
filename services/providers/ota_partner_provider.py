@@ -136,7 +136,11 @@ class OtaPartnerProvider(BaseFlightProvider):
                     booking_url=self._build_ota_link(ota["id"], departure, arrival, outbound_date, return_date),
                     trip_type="round_trip" if return_date else "one_way",
                     segments=segments,
-                    layovers=flight.get("layovers", [])
+                    layovers=flight.get("layovers", []),
+                    is_live=False,
+                    is_estimated=True,
+                    data_status="estimated",
+                    source=f"{ota['name']} Partner Channel (Estimated Fare)"
                 )
                 offers.append(offer)
 

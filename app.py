@@ -6,6 +6,7 @@ from validation import (
     validate_email,
     validate_iata_code,
     resolve_airport_code,
+    validate_airport_pair,
     validate_date_sequence,
     validate_passenger_counts,
     validate_multi_city_legs,
@@ -116,6 +117,7 @@ def inject_global_template_context():
         "current_year": datetime.now(timezone.utc).year,
         "logged_in_user": session.get("user_email"),
         "user_name": session.get("user_name"),
+        "support_email": (os.getenv("SUPPORT_EMAIL") or "").strip(),
     }
 
 
@@ -167,7 +169,13 @@ def settings_page():
 @rate_limit(limit=10, window=60)
 def api_contact():
     data = request.get_json(silent=True) or {}
-    if check_bot_honeypot(data.get("hp_username", "")):
+    hp = data.get("hp_username")
+    if hp and str(hp).strip():
+        return jsonify({"success": True, "message": "Inquiry submitted."}), 200
+
+    try:
+        check_bot_honeypot(data)
+    except ValueError:
         return jsonify({"success": True, "message": "Inquiry submitted."}), 200
 
     name = (data.get("name") or "").strip()
@@ -186,9 +194,34 @@ def api_contact():
     if not message or len(message) < 10 or len(message) > 4000:
         return jsonify({"error": "Please provide a detailed inquiry message (10-4000 characters)."}), 400
 
+    created_at = datetime.now(timezone.utc).isoformat()
+    try:
+        conn = db()
+        if DATABASE_URL:
+            conn.execute(
+                """
+                INSERT INTO contact_messages (name, email, subject, message, created_at)
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (name, email, subject, message, created_at)
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO contact_messages (name, email, subject, message, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (name, email, subject, message, created_at)
+            )
+        conn.commit()
+        conn.close()
+    except Exception as err:
+        app.logger.error("Failed to save contact message: %s", err)
+        return jsonify({"error": "Unable to record inquiry at this time. Please retry shortly."}), 500
+
     return jsonify({
         "success": True,
-        "message": "Your transmission has been logged with the SkyTracker Concierge. We will reply within 24 hours."
+        "message": "Your inquiry has been securely recorded. Our team will review your message."
     }), 200
 
 
@@ -505,13 +538,9 @@ def api_search():
         }), 400
 
     try:
-        departure = resolve_airport_code(data["departure"], "Departure airport")
-        arrival = resolve_airport_code(data["arrival"], "Arrival airport")
-    except ValueError as iata_err:
-        return jsonify({"error": str(iata_err)}), 400
-
-    if departure == arrival:
-        return jsonify({"error": "Departure and arrival airports cannot be identical."}), 400
+        departure, arrival = validate_airport_pair(data["departure"], data["arrival"])
+    except ValueError as pair_err:
+        return jsonify({"error": str(pair_err)}), 400
 
     return_date = data.get(
         "return_date"
@@ -795,13 +824,9 @@ def api_flight_compare():
             return jsonify({"error": "Departure, arrival, and outbound date are required."}), 400
 
         try:
-            departure = resolve_airport_code(raw_dep, "Departure airport")
-            arrival = resolve_airport_code(raw_arr, "Arrival airport")
-        except ValueError as iata_err:
-            return jsonify({"error": str(iata_err)}), 400
-
-        if departure == arrival:
-            return jsonify({"error": "Departure and arrival airports cannot be identical."}), 400
+            departure, arrival = validate_airport_pair(raw_dep, raw_arr)
+        except ValueError as pair_err:
+            return jsonify({"error": str(pair_err)}), 400
 
         outbound_date = str(raw_outbound).strip()
         return_date = data.get("return_date")
