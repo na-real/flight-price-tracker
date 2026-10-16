@@ -5,6 +5,7 @@ from validation import (
     clean_iata,
     validate_email,
     validate_iata_code,
+    resolve_airport_code,
     validate_date_sequence,
     validate_passenger_counts,
     validate_multi_city_legs,
@@ -47,6 +48,14 @@ from services.flight_api import (
     get_flight_aggregator,
     get_providers_status
 )
+from services.airports import (
+    search_airports,
+    get_nearby_airports,
+    calculate_distance,
+    load_airports,
+    airports,
+    CITY_ALIASES
+)
 from services.providers.base import FlightOffer
 csv.field_size_limit(sys.maxsize)
 
@@ -78,222 +87,10 @@ def add_security_headers(response):
 # ============================================================
 # GLOBAL AIRPORT DATABASE
 # ============================================================
-
-AIRPORTS_FILE = os.path.join(
-    os.path.dirname(__file__),
-    "data",
-    "airports.csv"
-)
-
-airports = []
-
-
-def load_airports():
-    """
-    Load airports from data/airports.csv.
-    Only airports with a valid IATA code are loaded.
-    """
-
-    global airports
-
-    if not os.path.exists(AIRPORTS_FILE):
-        print("airports.csv not found!")
-        return
-
-    airports.clear()
-
-    with open(
-    AIRPORTS_FILE,
-    "r",
-    encoding="utf-8-sig",
-    newline=""
-) as file:
-
-        reader = csv.DictReader(file)
-
-        for row in reader:
-
-            iata = (
-                row.get("iata_code") or ""
-            ).strip()
-
-            # Only keep airports with an IATA code
-            if not iata:
-                continue
-
-            try:
-                latitude = float(
-                    row.get("latitude_deg") or 0
-                )
-            except (TypeError, ValueError):
-                latitude = 0
-
-            try:
-                longitude = float(
-                    row.get("longitude_deg") or 0
-                )
-            except (TypeError, ValueError):
-                longitude = 0
-
-            airports.append({
-                "name": (
-                    row.get("name") or ""
-                ).strip(),
-
-                "city": (
-                    row.get("municipality") or ""
-                ).strip(),
-
-                "country": (
-                    row.get("iso_country") or ""
-                ).strip(),
-
-                "iata": iata.upper(),
-
-                "type": (
-                    row.get("type") or ""
-                ).strip(),
-
-                "latitude": latitude,
-
-                "longitude": longitude
-            })
-
-    print(
-        f"Loaded {len(airports)} airports"
-    )
-
-
-load_airports()
-
-
+# AIRPORT SERVICES
 # ============================================================
-# DISTANCE CALCULATION
-# ============================================================
-
-def calculate_distance(
-    lat1,
-    lon1,
-    lat2,
-    lon2
-):
-    """
-    Calculate distance between two coordinates
-    using the Haversine formula.
-
-    Returns distance in kilometers.
-    """
-
-    earth_radius = 6371
-
-    lat1 = math.radians(lat1)
-    lon1 = math.radians(lon1)
-
-    lat2 = math.radians(lat2)
-    lon2 = math.radians(lon2)
-
-    dlat = lat2 - lat1
-    dlon = lon2 - lon1
-
-    a = (
-        math.sin(dlat / 2) ** 2
-        +
-        math.cos(lat1)
-        * math.cos(lat2)
-        * math.sin(dlon / 2) ** 2
-    )
-
-    c = 2 * math.atan2(
-        math.sqrt(a),
-        math.sqrt(1 - a)
-    )
-
-    return earth_radius * c
-
-
-# ============================================================
-# NEARBY AIRPORT SEARCH
-# ============================================================
-
-def get_nearby_airports(
-    iata_code,
-    radius_km=100
-):
-    """
-    Return the selected airport plus
-    the closest nearby airport within
-    the specified radius.
-
-    Example:
-
-    DEL -> [DEL, nearby_airport]
-    """
-
-    iata_code = (
-        str(iata_code or "")
-        .strip()
-        .upper()
-    )
-
-    selected = None
-
-    for airport in airports:
-
-        if airport["iata"] == iata_code:
-
-            selected = airport
-            break
-
-    if not selected:
-        return [iata_code]
-
-    selected_lat = selected["latitude"]
-    selected_lon = selected["longitude"]
-
-    nearby = []
-
-    for airport in airports:
-
-        if airport["iata"] == selected["iata"]:
-            continue
-
-        if (
-            not airport["latitude"]
-            or not airport["longitude"]
-        ):
-            continue
-
-        distance = calculate_distance(
-            selected_lat,
-            selected_lon,
-            airport["latitude"],
-            airport["longitude"]
-        )
-
-        if distance <= radius_km:
-
-            nearby.append({
-                "iata": airport["iata"],
-                "distance": distance
-            })
-
-    nearby.sort(
-        key=lambda x: x["distance"]
-    )
-
-    # Always include the selected airport
-    result = [
-        selected["iata"]
-    ]
-
-    # Add only the closest nearby airport
-    if nearby:
-
-        result.append(
-            nearby[0]["iata"]
-        )
-
-    return result
+# Core airport database, haversine distance calculations, and nearby
+# hub discovery are centrally managed in services.airports.
 
 
 # ============================================================
@@ -555,113 +352,9 @@ def terms_page():
 @app.get("/api/airports")
 @rate_limit(limit=100, window=60)
 def airport_search():
-
-    query = (
-        request.args
-        .get("q", "")
-        .strip()[:50]
-        .lower()
-    )
-
-    iata_query = (
-        request.args
-        .get("iata", "")
-        .strip()[:3]
-        .upper()
-    )
-
-    # --------------------------------------------------------
-    # EXACT IATA LOOKUP
-    #
-    # Example:
-    # /api/airports?iata=DEL
-    # --------------------------------------------------------
-
-    if iata_query:
-
-        for airport in airports:
-
-            if airport["iata"] == iata_query:
-
-                return jsonify([
-                    {
-                        "name":
-                            airport["name"],
-
-                        "city":
-                            airport["city"],
-
-                        "country":
-                            airport["country"],
-
-                        "iata":
-                            airport["iata"],
-
-                        "type":
-                            airport["type"]
-                    }
-                ])
-
-        return jsonify([])
-
-    # --------------------------------------------------------
-    # NORMAL SEARCH
-    #
-    # Example:
-    # /api/airports?q=dehradun
-    # --------------------------------------------------------
-
-    if len(query) < 2:
-
-        return jsonify([])
-
-    matches = []
-
-    for airport in airports:
-
-        name = (
-            airport["name"]
-            .lower()
-        )
-
-        city = (
-            airport["city"]
-            .lower()
-        )
-
-        iata = (
-            airport["iata"]
-            .lower()
-        )
-
-        if (
-            query in name
-            or query in city
-            or query in iata
-        ):
-
-            matches.append({
-                "name":
-                    airport["name"],
-
-                "city":
-                    airport["city"],
-
-                "country":
-                    airport["country"],
-
-                "iata":
-                    airport["iata"],
-
-                "type":
-                    airport["type"]
-            })
-
-        # Keep autocomplete results small
-        if len(matches) >= 10:
-            break
-
-    return jsonify(matches)
+    query = request.args.get("q", "").strip()[:50]
+    iata_query = request.args.get("iata", "").strip()[:3].upper()
+    return jsonify(search_airports(q=query, iata=iata_query))
 
 
 # ============================================================
@@ -702,10 +395,18 @@ def api_search():
         except ValueError as leg_err:
             return jsonify({"error": str(leg_err)}), 400
 
-        try:
-            travel_class = int(data.get("travel_class", 1))
-        except (TypeError, ValueError):
-            travel_class = 1
+        raw_class = data.get("travel_class", 1)
+        if isinstance(raw_class, str):
+            class_map = {
+                "1": 1, "2": 2, "3": 3, "4": 4,
+                "economy": 1, "premium_economy": 2, "business": 3, "first": 4
+            }
+            travel_class = class_map.get(raw_class.lower(), 1)
+        else:
+            try:
+                travel_class = int(raw_class)
+            except (TypeError, ValueError):
+                travel_class = 1
 
         all_results = search_multi_city_flights(
             legs=cleaned_legs,
@@ -792,8 +493,8 @@ def api_search():
         }), 400
 
     try:
-        departure = validate_iata_code(data["departure"], "Departure airport")
-        arrival = validate_iata_code(data["arrival"], "Arrival airport")
+        departure = resolve_airport_code(data["departure"], "Departure airport")
+        arrival = resolve_airport_code(data["arrival"], "Arrival airport")
     except ValueError as iata_err:
         return jsonify({"error": str(iata_err)}), 400
 
@@ -877,15 +578,18 @@ def api_search():
         # --------------------------------------------------------
     # SEARCH EACH AIRPORT SEPARATELY
     # --------------------------------------------------------
-    try:
-        travel_class = int(
-            data.get(
-                "travel_class",
-                1
-            )
-        )
-    except (TypeError, ValueError):
-        travel_class = 1
+    raw_class = data.get("travel_class", 1)
+    if isinstance(raw_class, str):
+        class_map = {
+            "1": 1, "2": 2, "3": 3, "4": 4,
+            "economy": 1, "premium_economy": 2, "business": 3, "first": 4
+        }
+        travel_class = class_map.get(raw_class.lower(), 1)
+    else:
+        try:
+            travel_class = int(raw_class)
+        except (TypeError, ValueError):
+            travel_class = 1
     try:
         airport_comparisons = []
         all_results = []
@@ -1079,8 +783,8 @@ def api_flight_compare():
             return jsonify({"error": "Departure, arrival, and outbound date are required."}), 400
 
         try:
-            departure = validate_iata_code(raw_dep, "Departure airport")
-            arrival = validate_iata_code(raw_arr, "Arrival airport")
+            departure = resolve_airport_code(raw_dep, "Departure airport")
+            arrival = resolve_airport_code(raw_arr, "Arrival airport")
         except ValueError as iata_err:
             return jsonify({"error": str(iata_err)}), 400
 

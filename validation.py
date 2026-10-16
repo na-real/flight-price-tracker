@@ -63,6 +63,51 @@ def validate_iata_code(value, field_name="Airport code"):
     return cleaned
 
 
+def resolve_airport_code(value, field_name="Airport code"):
+    """
+    Resolve an airport input string (IATA, city alias, or airport query) to a canonical 3-letter IATA code.
+    If already a valid 3-letter IATA code, returns it uppercase.
+    Otherwise attempts lookup via services.airports and city aliases.
+    Raises ValueError if unresolvable.
+    """
+    raw = str(value or "").strip()
+    if not raw:
+        raise ValueError(f"{field_name} must be a valid 3-letter IATA airport code (e.g. DEL, LHR).")
+
+    # 1. Direct 3-letter code
+    cleaned = clean_iata(raw)
+    if cleaned and IATA_REGEX.match(cleaned):
+        return cleaned
+
+    # 2. Parenthesized code like "New Delhi (DEL)"
+    paren_match = re.search(r"\(([A-Za-z]{3})\)", raw)
+    if paren_match:
+        code = paren_match.group(1).upper()
+        if IATA_REGEX.match(code):
+            return code
+
+    # 3. Check city aliases or lookup
+    try:
+        from services.airports import search_airports, CITY_ALIASES
+        raw_lower = raw.lower()
+        if raw_lower in CITY_ALIASES:
+            return CITY_ALIASES[raw_lower]
+
+        alias_key = raw_lower.replace(" ", "").replace("-", "")
+        if alias_key in CITY_ALIASES:
+            return CITY_ALIASES[alias_key]
+
+        matches = search_airports(raw)
+        if matches and matches[0].get("iata"):
+            code = clean_iata(matches[0]["iata"])
+            if IATA_REGEX.match(code):
+                return code
+    except Exception:
+        pass
+
+    raise ValueError(f"{field_name} must be a valid 3-letter IATA airport code (e.g. DEL, LHR).")
+
+
 def validate_date_iso(date_str, field_name="Date", allow_past=False):
     """Validate that date_str is in YYYY-MM-DD format and not in the past."""
     from datetime import datetime, date
@@ -149,14 +194,10 @@ def validate_multi_city_legs(legs, allow_past=False):
         if not isinstance(leg, dict):
             raise ValueError(f"Flight leg {leg_num} must be an object.")
 
-        dep = clean_iata(leg.get("departure"))
-        arr = clean_iata(leg.get("arrival"))
+        dep = resolve_airport_code(leg.get("departure"), f"Flight leg {leg_num} departure airport")
+        arr = resolve_airport_code(leg.get("arrival"), f"Flight leg {leg_num} arrival airport")
         date_str = str(leg.get("outbound_date") or "").strip()
 
-        if not dep or len(dep) != 3:
-            raise ValueError(f"Flight leg {leg_num} must have a valid 3-letter departure airport code.")
-        if not arr or len(arr) != 3:
-            raise ValueError(f"Flight leg {leg_num} must have a valid 3-letter arrival airport code.")
         if dep == arr:
             raise ValueError(f"Flight leg {leg_num} origin and destination cannot be identical ({dep}).")
 

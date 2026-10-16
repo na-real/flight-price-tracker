@@ -6100,3 +6100,53 @@ MULTI-CITY SEARCH FORM STYLES
         padding: 18px 14px;
     }
 }
+
+/* =========================================================
+   SEARCH LOADING, FIELD VALIDATION & KEYBOARD SELECTION
+========================================================= */
+.btn-loader {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: var(--accent-gold, #DFC99E);
+    border-radius: 50%;
+    animation: btn-loader-spin 0.75s linear infinite;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 8px;
+}
+
+@keyframes btn-loader-spin {
+    to { transform: rotate(360deg); }
+}
+
+.field-error {
+    border-color: rgba(224, 86, 96, 0.8) !important;
+    box-shadow: 0 0 0 1px rgba(224, 86, 96, 0.4) !important;
+}
+
+.results-loading-state {
+    padding: 56px 24px;
+    text-align: center;
+    border-radius: 12px;
+    background: var(--surface-glass, rgba(20, 24, 33, 0.6));
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    margin-bottom: 24px;
+}
+
+.radar-scan-spinner {
+    display: inline-block;
+}
+
+.spin-slow {
+    animation: radar-spin-slow 6s linear infinite;
+}
+
+@keyframes radar-spin-slow {
+    to { transform: rotate(360deg); }
+}
+
+.airport-option.selected {
+    background: rgba(223, 201, 158, 0.12);
+    border-color: var(--accent-gold, #DFC99E);
+}

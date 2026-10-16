@@ -87,7 +87,11 @@ def load_airports():
 
                 "latitude": latitude,
 
-                "longitude": longitude
+                "longitude": longitude,
+
+                "keywords": (
+                    row.get("keywords") or ""
+                ).strip()
             })
 
     print(
@@ -235,16 +239,41 @@ def get_nearby_airports(
 
 
 # ============================================================
+# CANONICAL CITY ALIASES
+# ============================================================
+
+CITY_ALIASES = {
+    "bombay": "BOM",
+    "mumbai": "BOM",
+    "madras": "MAA",
+    "chennai": "MAA",
+    "calcutta": "CCU",
+    "kolkata": "CCU",
+    "bangalore": "BLR",
+    "bengaluru": "BLR",
+    "cochin": "COK",
+    "kochi": "COK",
+    "delhi": "DEL",
+    "new delhi": "DEL",
+    "peking": "PEK",
+    "beijing": "PEK",
+    "saigon": "SGN",
+    "ho chi minh": "SGN",
+    "canton": "CAN",
+    "guangzhou": "CAN"
+}
+
+
+# ============================================================
 # AIRPORT SEARCH / LOOKUP
 # ============================================================
 
 def search_airports(q=None, iata=None):
     """
-    Exact IATA lookup or text search.
+    Exact IATA lookup or ranked text search with alias and keyword support.
 
-    Matches the previous /api/airports behavior:
     - iata: exact match, 0 or 1 result
-    - q: substring of name, city, or IATA; max 10 results
+    - q: ranked search across IATA, city aliases, city name, keywords, and airport name
     - q shorter than 2 characters: empty list
     """
 
@@ -253,68 +282,76 @@ def search_airports(q=None, iata=None):
 
     # --------------------------------------------------------
     # EXACT IATA LOOKUP
-    #
-    # Example:
-    # /api/airports?iata=DEL
     # --------------------------------------------------------
-
     if iata_query:
-
         for airport in airports:
-
             if airport["iata"] == iata_query:
-
                 return [
                     _public_airport(airport)
                 ]
-
         return []
 
     # --------------------------------------------------------
-    # NORMAL SEARCH
-    #
-    # Example:
-    # /api/airports?q=dehradun
+    # RANKED SEARCH WITH ALIASES & KEYWORDS
     # --------------------------------------------------------
-
     if len(query) < 2:
-
         return []
 
-    matches = []
-
+    scored = []
     for airport in airports:
+        score = 0
+        iata_lower = airport["iata"].lower()
+        city_lower = airport["city"].lower()
+        name_lower = airport["name"].lower()
+        kw_lower = airport.get("keywords", "").lower()
+        kw_list = [k.strip() for k in kw_lower.split(",") if k.strip()]
 
-        name = (
-            airport["name"]
-            .lower()
-        )
+        # 1. Exact or prefix IATA code match
+        if query == iata_lower:
+            score += 1000
+        elif iata_lower.startswith(query):
+            score += 500
 
-        city = (
-            airport["city"]
-            .lower()
-        )
+        # 2. City Alias match (e.g. Bombay -> BOM, Madras -> MAA)
+        if query in CITY_ALIASES and CITY_ALIASES[query] == airport["iata"]:
+            score += 800
+        elif any(alias.startswith(query) and code == airport["iata"] for alias, code in CITY_ALIASES.items()):
+            score += 400
 
-        iata_code = (
-            airport["iata"]
-            .lower()
-        )
+        # 3. City name match
+        if city_lower == query:
+            score += 400
+        elif city_lower.startswith(query):
+            score += 300
+        elif query in city_lower:
+            score += 150
 
-        if (
-            query in name
-            or query in city
-            or query in iata_code
-        ):
+        # 4. Keywords match (from CSV)
+        if any(k == query for k in kw_list):
+            score += 350
+        elif any(k.startswith(query) for k in kw_list):
+            score += 250
+        elif query in kw_lower:
+            score += 100
 
-            matches.append(
-                _public_airport(airport)
-            )
+        # 5. Airport name match
+        if name_lower.startswith(query):
+            score += 200
+        elif query in name_lower:
+            score += 100
 
-        # Keep autocomplete results small
-        if len(matches) >= 10:
-            break
+        if score > 0:
+            if airport["type"] == "large_airport":
+                score += 80
+            elif airport["type"] == "medium_airport":
+                score += 40
+            elif airport["type"] == "small_airport":
+                score += 10
 
-    return matches
+            scored.append((score, airport))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [_public_airport(x[1]) for x in scored[:10]]
 
 
 load_airports()

@@ -283,14 +283,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const depInput = document.getElementById('departure');
         if (depInput) {
             depInput.value = dep;
-            depInput.dataset.iata = dep.substring(0, 3).toUpperCase();
+            if (typeof resolveAirportInput === 'function') {
+                resolveAirportInput(depInput, 'Origin');
+            } else {
+                depInput.dataset.iata = dep.substring(0, 3).toUpperCase();
+            }
         }
     }
     if (arr) {
         const arrInput = document.getElementById('arrival');
         if (arrInput) {
             arrInput.value = arr;
-            arrInput.dataset.iata = arr.substring(0, 3).toUpperCase();
+            if (typeof resolveAirportInput === 'function') {
+                resolveAirportInput(arrInput, 'Destination');
+            } else {
+                arrInput.dataset.iata = arr.substring(0, 3).toUpperCase();
+            }
         }
     }
     if (outDate) {
@@ -318,10 +326,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Auto-trigger search if both origin and destination provided
     if (dep && arr) {
-        setTimeout(() => {
+        setTimeout(async () => {
+            const depInput = document.getElementById('departure');
+            const arrInput = document.getElementById('arrival');
+            if (typeof resolveAirportInput === 'function') {
+                if (depInput) await resolveAirportInput(depInput, 'Origin');
+                if (arrInput) await resolveAirportInput(arrInput, 'Destination');
+            }
             const searchSubmitBtn = document.getElementById('searchSubmitBtn');
             if (searchSubmitBtn) searchSubmitBtn.click();
-        }, 300);
+        }, 350);
     }
 });
 </script>
