@@ -121,6 +121,53 @@ def init_db():
             )
         """)
 
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS api_cache (
+                cache_key TEXT PRIMARY KEY,
+                provider_id TEXT NOT NULL,
+                endpoint TEXT NOT NULL,
+                response_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                is_live INTEGER DEFAULT 1
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS api_quota_logs (
+                id BIGSERIAL PRIMARY KEY,
+                provider_id TEXT NOT NULL,
+                endpoint TEXT NOT NULL,
+                caller_type TEXT NOT NULL,
+                cache_hit INTEGER DEFAULT 0,
+                status_code INTEGER DEFAULT 200,
+                error_category TEXT,
+                cost INTEGER DEFAULT 1,
+                created_at TEXT NOT NULL
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS api_circuit_state (
+                provider_id TEXT PRIMARY KEY,
+                state TEXT NOT NULL,
+                failure_count INTEGER DEFAULT 0,
+                last_failure_at TEXT,
+                opened_at TEXT,
+                cooldown_until TEXT,
+                reason TEXT
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS cron_locks (
+                job_name TEXT PRIMARY KEY,
+                locked_at TEXT NOT NULL,
+                locked_by TEXT NOT NULL,
+                expires_at TEXT NOT NULL
+            )
+        """)
+
     else:
         # SQLite
         conn.execute("""
@@ -170,6 +217,60 @@ def init_db():
                 created_at TEXT NOT NULL
             )
         """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS api_cache (
+                cache_key TEXT PRIMARY KEY,
+                provider_id TEXT NOT NULL,
+                endpoint TEXT NOT NULL,
+                response_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                is_live INTEGER DEFAULT 1
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS api_quota_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider_id TEXT NOT NULL,
+                endpoint TEXT NOT NULL,
+                caller_type TEXT NOT NULL,
+                cache_hit INTEGER DEFAULT 0,
+                status_code INTEGER DEFAULT 200,
+                error_category TEXT,
+                cost INTEGER DEFAULT 1,
+                created_at TEXT NOT NULL
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS api_circuit_state (
+                provider_id TEXT PRIMARY KEY,
+                state TEXT NOT NULL,
+                failure_count INTEGER DEFAULT 0,
+                last_failure_at TEXT,
+                opened_at TEXT,
+                cooldown_until TEXT,
+                reason TEXT
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS cron_locks (
+                job_name TEXT PRIMARY KEY,
+                locked_at TEXT NOT NULL,
+                locked_by TEXT NOT NULL,
+                expires_at TEXT NOT NULL
+            )
+        """)
+
+    # Backward-compatible migrations for tracked_flights columns
+    for col in ("last_attempted_at", "last_successful_at"):
+        try:
+            conn.execute(f"ALTER TABLE tracked_flights ADD COLUMN {col} TEXT")
+        except Exception:
+            pass
 
     conn.commit()
     conn.close()

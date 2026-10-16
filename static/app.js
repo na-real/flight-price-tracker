@@ -2630,9 +2630,15 @@ async function renderFlightResults(flights) {
                           `
                         : "";
 
+                const ageMinutes = (typeof flight.age_seconds === "number" && flight.age_seconds > 0)
+                    ? Math.max(1, Math.round(flight.age_seconds / 60))
+                    : null;
+                const cachedTimeLabel = ageMinutes ? `${ageMinutes}m ago` : "Recent";
                 const statusBadge = (flight.is_simulated || flight.data_status === "demonstration")
-                    ? `<span class="data-status-badge demo-badge font-mono" title="Live SerpAPI unconfigured. Benchmark fare displayed.">DEMONSTRATION FARE</span>`
-                    : `<span class="data-status-badge live-badge font-mono" title="Live verified fare via SerpAPI">LIVE VERIFIED FARE</span>`;
+                    ? `<span class="data-status-badge demo-badge font-mono" title="Live SerpAPI unconfigured or quota unavailable. Benchmark fare displayed.">DEMONSTRATION FARE</span>`
+                    : (flight.is_cached || flight.data_status === "cached")
+                        ? `<span class="data-status-badge cached-badge font-mono" title="Cached observation from ${flight.cached_at || 'recent query'}. Fares fluctuate.">CACHED FARE (${cachedTimeLabel})</span>`
+                        : `<span class="data-status-badge live-badge font-mono" title="Live verified fare via SerpAPI">LIVE VERIFIED FARE</span>`;
 
 
                 /* ---------------------------------------------

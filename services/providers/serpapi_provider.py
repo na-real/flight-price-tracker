@@ -9,6 +9,12 @@ from typing import List, Dict, Any, Optional
 import requests
 
 from .base import BaseFlightProvider, FlightOffer, ProviderStatus
+from services.api_guardian import (
+    guardian,
+    PROVIDER_SERPAPI,
+    CALLER_USER_SEARCH,
+    get_guardian_config,
+)
 
 
 SERPAPI_URL = "https://serpapi.com/search.json"
@@ -92,18 +98,51 @@ class SerpApiFlightsProvider(BaseFlightProvider):
         offers: List[FlightOffer] = []
 
         try:
-            response = requests.get(SERPAPI_URL, params=params, timeout=20)
-            data = response.json()
+            def _fetch(p):
+                cfg = get_guardian_config()
+                timeout = cfg.get("serpapi_timeout", 20)
+                response = requests.get(SERPAPI_URL, params=p, timeout=timeout)
+                data = response.json() if response.content else {}
 
-            if response.status_code == 429 or "search limit reached" in str(data.get("error", "")).lower():
+                if response.status_code == 429 or "search limit reached" in str(data.get("error", "")).lower():
+                    err = requests.exceptions.HTTPError("SerpAPI search limit reached (HTTP 429)", response=response)
+                    setattr(err, "status_code", 429)
+                    raise err
+
+                if response.status_code >= 400:
+                    err = requests.exceptions.HTTPError(f"SerpAPI returned HTTP {response.status_code}", response=response)
+                    setattr(err, "status_code", response.status_code)
+                    raise err
+
+                if data.get("error"):
+                    err = Exception(f"SerpAPI error: {data.get('error')}")
+                    setattr(err, "status_code", 400)
+                    raise err
+
+                return data
+
+            guardian_resp = guardian.execute_request(
+                provider_id=self.provider_id,
+                endpoint="search",
+                params=params,
+                fetch_fn=_fetch,
+                caller_type=CALLER_USER_SEARCH
+            )
+
+            if guardian_resp.status in ("blocked_budget", "circuit_open"):
                 self.last_status = "rate_limited"
-                self.last_message = "SerpAPI monthly search limit reached. Fallback providers active."
+                self.last_message = guardian_resp.error or "SerpAPI provider temporarily blocked by API Guardian"
                 return []
 
-            if data.get("error"):
+            if guardian_resp.status == "error" or not guardian_resp.data:
                 self.last_status = "error"
-                self.last_message = f"SerpAPI returned error: {data.get('error')}"
+                self.last_message = guardian_resp.error or "SerpAPI request failed"
                 return []
+
+            data = guardian_resp.data
+            is_live_flag = not guardian_resp.is_cached
+            data_status_flag = "cached" if guardian_resp.is_cached else "live"
+            source_suffix = " (Shared Cache)" if guardian_resp.is_cached else ""
 
             # Process best and other flights
             raw_itineraries = []
@@ -145,10 +184,10 @@ class SerpApiFlightsProvider(BaseFlightProvider):
                         baggage="Cabin: 7 kg included",
                         booking_url=self._build_deep_link(departure, arrival, outbound_date),
                         trip_type="round_trip" if return_date else "one_way",
-                        is_live=True,
+                        is_live=is_live_flag,
                         is_estimated=False,
-                        data_status="live",
-                        source="Google Flights via SerpAPI"
+                        data_status=data_status_flag,
+                        source=f"Google Flights via SerpAPI{source_suffix}"
                     )
                     offers.append(base_offer)
 
@@ -177,15 +216,16 @@ class SerpApiFlightsProvider(BaseFlightProvider):
                             baggage="Cabin: 7 kg included",
                             booking_url=b_url or self._build_deep_link(departure, arrival, outbound_date),
                             trip_type="round_trip" if return_date else "one_way",
-                            is_live=True,
+                            is_live=is_live_flag,
                             is_estimated=False,
-                            data_status="live",
-                            source=f"{b_partner} via SerpAPI"
+                            data_status=data_status_flag,
+                            source=f"{b_partner} via SerpAPI{source_suffix}"
                         )
                         offers.append(partner_offer)
 
             self.last_status = "active"
-            self.last_message = f"Retrieved {len(offers)} offers from Google Flights"
+            cached_note = " (cached)" if not is_live_flag else ""
+            self.last_message = f"Retrieved {len(offers)} offers from Google Flights{cached_note}"
             self.last_offer_count = len(offers)
 
         except requests.RequestException as exc:

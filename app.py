@@ -60,6 +60,7 @@ from services.airports import (
     CITY_ALIASES
 )
 from services.providers.base import FlightOffer
+from services.api_guardian import guardian
 csv.field_size_limit(sys.maxsize)
 
 load_dotenv()
@@ -1463,6 +1464,33 @@ def api_appearance_preferences():
         "reducedMotion": False
     })
     return jsonify({"success": True, "status": "ok", "preferences": prefs}), 200
+
+
+# ============================================================
+# API QUOTA GUARDIAN & RELIABILITY DIAGNOSTICS ENDPOINT
+# ============================================================
+@app.get("/api/diagnostics/quota")
+@app.get("/api/admin/quota")
+def api_diagnostics_quota():
+    """
+    Access-controlled operations diagnostics endpoint.
+    Exposes sanitized API quota, circuit breaker, and cache efficiency metrics.
+    Never exposes API keys, secrets, or individual user search queries.
+    """
+    admin_token = os.getenv("ADMIN_DIAGNOSTICS_TOKEN") or os.getenv("ADMIN_KEY")
+    if admin_token:
+        auth_header = request.headers.get("Authorization", "")
+        token = auth_header.replace("Bearer ", "").strip() if auth_header else ""
+        if not token:
+            token = request.headers.get("X-Admin-Key", "").strip()
+        if not token:
+            token = request.args.get("token", "").strip()
+
+        if token != admin_token:
+            return jsonify({"error": "Unauthorized access to diagnostics endpoint."}), 401
+
+    diagnostics = guardian.get_diagnostics()
+    return jsonify(diagnostics), 200
 
 
 # ============================================================

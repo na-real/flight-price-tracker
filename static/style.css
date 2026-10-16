@@ -7697,3 +7697,9 @@ body.luxury-experience {
     color: #4ade80;
     border: 1px solid rgba(74, 222, 128, 0.25);
 }
+
+.data-status-badge.cached-badge {
+    background: rgba(148, 163, 184, 0.1);
+    color: #94a3b8;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+}

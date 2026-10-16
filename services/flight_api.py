@@ -1,17 +1,15 @@
 import os
 import hashlib
-
-
-
 import requests
-
-
-
-
-
-
-
 from dotenv import load_dotenv
+
+from services.api_guardian import (
+    guardian,
+    PROVIDER_SERPAPI,
+    CALLER_USER_SEARCH,
+    CALLER_BACKGROUND_CHECK,
+    get_guardian_config,
+)
 
 
 
@@ -1402,28 +1400,58 @@ def _normalize_itinerary(itinerary):
         "source": "Google Flights via SerpAPI"
     }
 
-def _serpapi_request(params):
-    response = requests.get(SERPAPI_URL, params=params, timeout=60)
-    response.raise_for_status()
-    data = response.json()
+def _raw_serpapi_fetch(params):
+    cfg = get_guardian_config()
+    timeout = cfg.get("serpapi_timeout", 25)
+    response = requests.get(SERPAPI_URL, params=params, timeout=timeout)
+    data = response.json() if response.content else {}
+
+    if response.status_code == 429 or "search limit reached" in str(data.get("error", "")).lower():
+        err = Exception(data.get("error") or "SerpAPI account search limit reached (HTTP 429)")
+        setattr(err, "status_code", 429)
+        setattr(err, "response", response)
+        raise err
+
+    if response.status_code >= 400:
+        err = Exception(data.get("error") or f"SerpAPI request error (HTTP {response.status_code})")
+        setattr(err, "status_code", response.status_code)
+        setattr(err, "response", response)
+        raise err
+
     if data.get("error"):
-        raise Exception(data["error"])
+        err = Exception(data["error"])
+        setattr(err, "status_code", 400)
+        raise err
+
     return data
+
+
+def _serpapi_request(params, caller_type=CALLER_USER_SEARCH):
+    resp = guardian.execute_request(
+        provider_id=PROVIDER_SERPAPI,
+        endpoint="search.json",
+        params=params,
+        fetch_fn=_raw_serpapi_fetch,
+        caller_type=caller_type
+    )
+    if resp.status not in ("fresh", "cached") or not resp.data:
+        raise Exception(resp.error or "SerpAPI request blocked by Quota Guardian or unavailable")
+    return resp.data
+
+
 def _get_cheapest_one_way_price(
     departure,
     arrival,
     travel_date,
-    travel_class=1
+    travel_class=1,
+    caller_type=CALLER_USER_SEARCH
 ):
     """
     Get the cheapest standalone one-way fare for a route/date.
-
     This is a REFERENCE fare only.
     It is not assumed to be one half of a round-trip ticket.
     """
-
     api_key = os.getenv("SERPAPI_KEY")
-
     if not api_key:
         return None
 
@@ -1441,13 +1469,15 @@ def _get_cheapest_one_way_price(
         "show_hidden": "true"
     }
 
-    data = _serpapi_request(params)
+    try:
+        data = _serpapi_request(params, caller_type=caller_type)
+    except Exception as e:
+        print(f"Reference one-way fare query notice: {e}")
+        return None
 
     prices = []
-
     for itinerary in _collect_itineraries(data):
         flight = _normalize_itinerary(itinerary)
-
         if flight and flight.get("price") is not None:
             try:
                 prices.append(int(flight["price"]))
@@ -1457,7 +1487,44 @@ def _get_cheapest_one_way_price(
     return min(prices) if prices else None
 
 
-def search_flights(departure, arrival, outbound_date, return_date=None, travel_class=1):
+def search_flights(
+    departure,
+    arrival,
+    outbound_date,
+    return_date=None,
+    travel_class=1,
+    caller_type=CALLER_USER_SEARCH,
+    force_refresh=False
+):
+    dep = str(departure or "").strip().upper()
+    arr = str(arrival or "").strip().upper()
+    out_date = str(outbound_date or "").strip()
+    ret_date = str(return_date).strip() if return_date else None
+    t_class = int(travel_class or 1)
+
+    # 1. High-Level Route Cache Check (Guarantees zero upstream calls for recent repeated searches)
+    route_cache_key = guardian.build_cache_key(
+        PROVIDER_SERPAPI,
+        "search_flights",
+        {"dep": dep, "arr": arr, "outbound": out_date, "return": ret_date, "class": t_class}
+    )
+
+    if not force_refresh:
+        cached_resp = guardian.get_cached(route_cache_key)
+        if cached_resp and cached_resp.data:
+            # Mark cached flights truthfully
+            cached_results = []
+            for item in cached_resp.data:
+                f_copy = dict(item)
+                f_copy["is_cached"] = True
+                f_copy["cached_at"] = cached_resp.cached_at
+                f_copy["age_seconds"] = cached_resp.age_seconds
+                f_copy["data_status"] = "cached"
+                f_copy["is_live"] = False
+                f_copy["source"] = f"{f_copy.get('source', 'Google Flights via SerpAPI')} (Cached)"
+                cached_results.append(f_copy)
+            return cached_results
+
     api_key = os.getenv("SERPAPI_KEY")
 
     def _get_demo_flights():
@@ -1470,7 +1537,7 @@ def search_flights(departure, arrival, outbound_date, return_date=None, travel_c
         ]
         demo_list = []
         for item in sample_airlines:
-            itin_raw = f"{departure}_{arrival}_{item['name']}_{item['flight_no']}_{item['dep']}_{item['arr']}_{item['stops']}"
+            itin_raw = f"{dep}_{arr}_{item['name']}_{item['flight_no']}_{item['dep']}_{item['arr']}_{item['stops']}"
             itinerary_id = hashlib.md5(itin_raw.encode("utf-8")).hexdigest()[:12]
             out_leg = {
                 "airline": item["name"],
@@ -1482,11 +1549,11 @@ def search_flights(departure, arrival, outbound_date, return_date=None, travel_c
                 "stops": item["stops"],
                 "departure_time": item["dep"],
                 "arrival_time": item["arr"],
-                "departure_airport": departure,
-                "arrival_airport": arrival,
+                "departure_airport": dep,
+                "arrival_airport": arr,
                 "segments": [{
-                    "departure_airport": departure, "departure_name": f"{departure} Airport",
-                    "departure_time": item["dep"], "arrival_airport": arrival, "arrival_name": f"{arrival} Airport",
+                    "departure_airport": dep, "departure_name": f"{dep} Airport",
+                    "departure_time": item["dep"], "arrival_airport": arr, "arrival_name": f"{arr} Airport",
                     "arrival_time": item["arr"], "airline": item["name"], "flight_number": item["flight_no"],
                     "duration": item["duration"], "airline_logo": ""
                 }],
@@ -1495,23 +1562,24 @@ def search_flights(departure, arrival, outbound_date, return_date=None, travel_c
                 }],
                 "is_simulated": True,
                 "is_live": False,
+                "is_cached": False,
                 "data_status": "demonstration",
                 "source": "Demonstration Data (Live SerpAPI Unconfigured)"
             }
-            if not return_date:
+            if not ret_date:
                 demo_list.append(out_leg)
             else:
-                ret_itin_raw = f"{arrival}_{departure}_{item['name']}_{item['flight_no']}R_15:30_17:45_{item['stops']}"
+                ret_itin_raw = f"{arr}_{dep}_{item['name']}_{item['flight_no']}R_15:30_17:45_{item['stops']}"
                 ret_itinerary_id = hashlib.md5(ret_itin_raw.encode("utf-8")).hexdigest()[:12]
                 ret_leg = {
                     **out_leg,
                     "flight_number": item["flight_no"] + "R",
                     "itinerary_id": ret_itinerary_id,
-                    "departure_airport": arrival, "arrival_airport": departure,
+                    "departure_airport": arr, "arrival_airport": dep,
                     "departure_time": "15:30", "arrival_time": "17:45",
                     "segments": [{
-                        "departure_airport": arrival, "departure_name": f"{arrival} Airport",
-                        "departure_time": "15:30", "arrival_airport": departure, "arrival_name": f"{departure} Airport",
+                        "departure_airport": arr, "departure_name": f"{arr} Airport",
+                        "departure_time": "15:30", "arrival_airport": dep, "arrival_name": f"{dep} Airport",
                         "arrival_time": "17:45", "airline": item["name"], "flight_number": item["flight_no"] + "R",
                         "duration": item["duration"], "airline_logo": ""
                     }],
@@ -1531,6 +1599,7 @@ def search_flights(departure, arrival, outbound_date, return_date=None, travel_c
                     "reference_separate_total": item["price"] * 2,
                     "is_simulated": True,
                     "is_live": False,
+                    "is_cached": False,
                     "data_status": "demonstration",
                     "source": "Demonstration Data (Live SerpAPI Unconfigured)"
                 })
@@ -1541,65 +1610,53 @@ def search_flights(departure, arrival, outbound_date, return_date=None, travel_c
         return _get_demo_flights()
 
     params = {
-           "engine": "google_flights", "api_key": api_key,
-           "departure_id": departure.upper(), "arrival_id": arrival.upper(),
-           "outbound_date": outbound_date, "travel_class": travel_class,
-           "currency": "INR", "hl": "en", "gl": "in", "show_hidden": "true"
+        "engine": "google_flights", "api_key": api_key,
+        "departure_id": dep, "arrival_id": arr,
+        "outbound_date": out_date, "travel_class": t_class,
+        "currency": "INR", "hl": "en", "gl": "in", "show_hidden": "true"
     }
-    if return_date:
-        params["return_date"] = return_date
+    if ret_date:
+        params["return_date"] = ret_date
         params["type"] = "1"
     else:
         params["type"] = "2"
 
     try:
-        data = _serpapi_request(params)
+        data = _serpapi_request(params, caller_type=caller_type)
     except Exception as err:
         print(f"SerpAPI quota notice: {err}. Using simulated flight intelligence.")
         return _get_demo_flights()
 
     itineraries = _collect_itineraries(data)
 
-    if not return_date:
+    if not ret_date:
         results = []
-
         for itinerary in itineraries:
             flight = _normalize_itinerary(itinerary)
-
             if flight:
                 results.append(flight)
-        return sorted(results, key=lambda f: f["price"])
-
+        sorted_results = sorted(results, key=lambda f: f["price"])
+        # Cache results in Quota Guardian
+        cfg = get_guardian_config()
+        ttl = cfg["cache_ttl_checker"] if caller_type == CALLER_BACKGROUND_CHECK else cfg["cache_ttl_search"]
+        guardian.set_cached(route_cache_key, PROVIDER_SERPAPI, "search_flights", sorted_results, ttl_seconds=ttl, is_live=True)
+        return sorted_results
 
     # Round trip: initial response contains outbound options.
-    # Each outbound option has a departure_token.
-    # Use that token to retrieve the corresponding return options.
-
-    # ---------------------------------------------------------
-    # REFERENCE ONE-WAY FARES
-    # ---------------------------------------------------------
-
     reference_outbound_price = None
     reference_return_price = None
     reference_separate_total = None
 
-
     try:
         reference_outbound_price = _get_cheapest_one_way_price(
-            departure,
-            arrival,
-            outbound_date,
-            travel_class
+            dep, arr, out_date, t_class, caller_type=caller_type
         )
     except Exception as e:
         print("Outbound reference fare error:", e)
 
     try:
         reference_return_price = _get_cheapest_one_way_price(
-            arrival,
-            departure,
-            return_date,
-            travel_class
+            arr, dep, ret_date, t_class, caller_type=caller_type
         )
     except Exception as e:
         print("Return reference fare error:", e)
@@ -1613,15 +1670,8 @@ def search_flights(departure, arrival, outbound_date, return_date=None, travel_c
             + reference_return_price
         )
 
-    outbound_limit = max(
-        1,
-        int(os.getenv("ROUND_TRIP_OUTBOUND_LIMIT", "5"))
-    )
-
-    return_limit = max(
-        1,
-        int(os.getenv("ROUND_TRIP_RETURN_LIMIT", "5"))
-    )
+    outbound_limit = max(1, int(os.getenv("ROUND_TRIP_OUTBOUND_LIMIT", "5")))
+    return_limit = max(1, int(os.getenv("ROUND_TRIP_RETURN_LIMIT", "5")))
 
     results = []
 
@@ -1633,12 +1683,16 @@ def search_flights(departure, arrival, outbound_date, return_date=None, travel_c
 
         return_params = {
             "engine": "google_flights", "api_key": api_key,
-            "departure_id": departure.upper(), "arrival_id": arrival.upper(),
-            "outbound_date": outbound_date, "return_date": return_date,
+            "departure_id": dep, "arrival_id": arr,
+            "outbound_date": out_date, "return_date": ret_date,
             "type": "1", "departure_token": token,
-            "travel_class": travel_class, "currency": "INR", "hl": "en", "gl": "in"
+            "travel_class": t_class, "currency": "INR", "hl": "en", "gl": "in"
         }
-        return_data = _serpapi_request(return_params)
+        try:
+            return_data = _serpapi_request(return_params, caller_type=caller_type)
+        except Exception as e:
+            print("Return leg search notice:", e)
+            continue
 
         for return_raw in _collect_itineraries(return_data)[:return_limit]:
             return_leg = _normalize_itinerary(return_raw)
@@ -1672,11 +1726,17 @@ def search_flights(departure, arrival, outbound_date, return_date=None, travel_c
                 "reference_separate_total": reference_separate_total,
                 "is_simulated": False,
                 "is_live": True,
+                "is_cached": False,
                 "data_status": "live",
                 "source": "Google Flights via SerpAPI"
             })
 
-    return sorted(results, key=lambda f: f["price"])
+    sorted_results = sorted(results, key=lambda f: f["price"])
+    # Cache round-trip results in Quota Guardian
+    cfg = get_guardian_config()
+    ttl = cfg["cache_ttl_checker"] if caller_type == CALLER_BACKGROUND_CHECK else cfg["cache_ttl_search"]
+    guardian.set_cached(route_cache_key, PROVIDER_SERPAPI, "search_flights", sorted_results, ttl_seconds=ttl, is_live=True)
+    return sorted_results
 
 
 # =========================================================

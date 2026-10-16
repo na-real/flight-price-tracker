@@ -8,6 +8,12 @@ from typing import List, Dict, Any, Optional
 import requests
 
 from .base import BaseFlightProvider, FlightOffer, ProviderStatus
+from services.api_guardian import (
+    guardian,
+    PROVIDER_AMADEUS,
+    CALLER_USER_SEARCH,
+    get_guardian_config,
+)
 
 
 AMADEUS_AUTH_URL = "https://test.api.amadeus.com/v1/security/oauth2/token"
@@ -115,20 +121,49 @@ class AmadeusFlightProvider(BaseFlightProvider):
 
         offers: List[FlightOffer] = []
         try:
-            headers = {"Authorization": f"Bearer {self.access_token}"}
-            res = requests.get(AMADEUS_FLIGHTS_URL, headers=headers, params=params, timeout=15)
-            if res.status_code == 401:
-                # Token expired, re-auth once
-                if self._authenticate():
-                    headers = {"Authorization": f"Bearer {self.access_token}"}
-                    res = requests.get(AMADEUS_FLIGHTS_URL, headers=headers, params=params, timeout=15)
+            def _fetch(p):
+                cfg = get_guardian_config()
+                timeout = cfg.get("amadeus_timeout", 15)
+                headers = {"Authorization": f"Bearer {self.access_token}"}
+                res = requests.get(AMADEUS_FLIGHTS_URL, headers=headers, params=p, timeout=timeout)
+                if res.status_code == 401:
+                    # Token expired, re-auth once
+                    if self._authenticate():
+                        headers = {"Authorization": f"Bearer {self.access_token}"}
+                        res = requests.get(AMADEUS_FLIGHTS_URL, headers=headers, params=p, timeout=timeout)
+                if res.status_code == 429:
+                    err = requests.exceptions.HTTPError("Amadeus rate limit reached (HTTP 429)", response=res)
+                    setattr(err, "status_code", 429)
+                    raise err
+                if res.status_code >= 400:
+                    err = requests.exceptions.HTTPError(f"Amadeus flight search returned HTTP {res.status_code}", response=res)
+                    setattr(err, "status_code", res.status_code)
+                    raise err
+                return res.json()
 
-            if res.status_code != 200:
-                self.last_status = "error"
-                self.last_message = f"Amadeus flight search returned HTTP {res.status_code}"
+            guardian_resp = guardian.execute_request(
+                provider_id=self.provider_id,
+                endpoint="flight-offers",
+                params=params,
+                fetch_fn=_fetch,
+                caller_type=CALLER_USER_SEARCH
+            )
+
+            if guardian_resp.status in ("blocked_budget", "circuit_open"):
+                self.last_status = "rate_limited"
+                self.last_message = guardian_resp.error or "Amadeus provider temporarily blocked by API Guardian"
                 return []
 
-            data = res.json()
+            if guardian_resp.status == "error" or not guardian_resp.data:
+                self.last_status = "error"
+                self.last_message = guardian_resp.error or "Amadeus query failed"
+                return []
+
+            data = guardian_resp.data
+            is_live_flag = not guardian_resp.is_cached
+            data_status_flag = "cached" if guardian_resp.is_cached else "live"
+            source_suffix = " (Shared Cache)" if guardian_resp.is_cached else ""
+
             raw_offers = data.get("data", [])
             for item in raw_offers:
                 itineraries = item.get("itineraries", [])
@@ -166,15 +201,16 @@ class AmadeusFlightProvider(BaseFlightProvider):
                     baggage="Standard allowance included",
                     booking_url="https://amadeus.com",
                     trip_type="round_trip" if return_date else "one_way",
-                    is_live=True,
+                    is_live=is_live_flag,
                     is_estimated=False,
-                    data_status="live",
-                    source="Amadeus GDS"
+                    data_status=data_status_flag,
+                    source=f"Amadeus GDS{source_suffix}"
                 )
                 offers.append(offer)
 
             self.last_status = "active"
-            self.last_message = f"Retrieved {len(offers)} offers from Amadeus GDS"
+            cached_note = " (cached)" if not is_live_flag else ""
+            self.last_message = f"Retrieved {len(offers)} offers from Amadeus GDS{cached_note}"
             self.last_offer_count = len(offers)
 
         except Exception as exc:
