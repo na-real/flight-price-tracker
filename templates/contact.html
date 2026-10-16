@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block title %}Contact Concierge Desk — SkyTracker{% endblock %}
+{% block meta_description %}Contact the SkyTracker concierge team for route intelligence inquiries, institutional API integrations, and radar price alert assistance.{% endblock %}
+{% block canonical_url %}https://skytrack-flights.onrender.com/contact{% endblock %}
+
+{% block content %}
+<section class="page-hero">
+    <div class="page-header">
+        <span class="page-badge font-mono">CONCIERGE & DIPLOMATIC DESK</span>
+        <h1 class="page-title">Direct Inquiries & Concierge</h1>
+        <p class="page-subtitle">
+            Our flight intelligence specialists and technical team remain in continuous standby. Submit an inquiry below or reach our direct channels.
+        </p>
+    </div>
+
+    <div class="contact-grid">
+        <!-- CONCIERGE FORM -->
+        <div class="contact-form-card">
+            <h3 class="font-serif" style="font-size: 1.6rem; margin-bottom: 8px;">Transmit a Message</h3>
+            <p style="font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 28px;">
+                Responses are prioritized and dispatched within 24 operational hours.
+            </p>
+
+            <form id="contactConciergeForm" autocomplete="off" onsubmit="return false;">
+                <!-- Anti-bot honeypot field (hidden from legitimate users) -->
+                <div style="position: absolute; left: -9999px; top: -9999px;" aria-hidden="true">
+                    <input type="text" name="hp_username" id="hp_username" tabindex="-1" autocomplete="off">
+                </div>
+
+                <div class="form-group">
+                    <label for="contactName" class="form-label">FULL NAME</label>
+                    <input type="text" id="contactName" name="name" class="form-input" placeholder="Lord / Lady / Dr. Surname" required minlength="2" maxlength="100">
+                </div>
+
+                <div class="form-group">
+                    <label for="contactEmail" class="form-label">EMAIL ADDRESS</label>
+                    <input type="email" id="contactEmail" name="email" class="form-input" placeholder="sovereign@domain.com" required value="{{ logged_in_user or '' }}">
+                </div>
+
+                <div class="form-group">
+                    <label for="contactSubject" class="form-label">SUBJECT OF TRANSMISSION</label>
+                    <select id="contactSubject" name="subject" class="form-select">
+                        <option value="Flight Intelligence & Arbitrage">Flight Intelligence & Arbitrage Inquiry</option>
+                        <option value="Radar Alert Support">Radar Alert & Price Tracking Support</option>
+                        <option value="Institutional API Integration">Institutional & Enterprise API Access</option>
+                        <option value="Data Privacy & Confidentiality">Data Privacy & Confidentiality Matter</option>
+                        <option value="General Concierge">General Inquiries</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="contactMessage" class="form-label">MESSAGE INQUIRY</label>
+                    <textarea id="contactMessage" name="message" class="form-textarea" placeholder="Detail your route inquiry or technical requirement..." required minlength="10" maxlength="4000"></textarea>
+                </div>
+
+                <div id="contactFormError" class="auth-error-banner" style="display: none;"></div>
+
+                <div id="contactSuccessCard" class="contact-success-card">
+                    <h4 class="font-serif" style="font-size: 1.3rem; margin-bottom: 6px;">Transmission Received</h4>
+                    <p style="font-size: 0.88rem; color: var(--text-secondary);" id="contactSuccessMsg">
+                        Your message has been securely received by the SkyTracker Concierge. A specialist will reply shortly.
+                    </p>
+                </div>
+
+                <button type="submit" id="contactSubmitBtn" class="primary-btn" style="width: 100%; margin-top: 14px;">
+                    <span id="contactSpinner" class="btn-loader" style="display: none;"></span>
+                    <span id="contactBtnText">Dispatch Transmission</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
+            </form>
+        </div>
+
+        <!-- VERIFIED CONTACT INFORMATION -->
+        <div class="contact-info-card">
+            <div class="contact-info-block">
+                <span class="contact-info-title">DIRECT CONCIERGE</span>
+                <p class="contact-info-value">
+                    <a href="mailto:concierge@skytrack.luxury" class="contact-info-link">concierge@skytrack.luxury</a>
+                </p>
+                <span class="font-mono" style="font-size: 0.72rem; color: var(--text-tertiary);">Cryptographically encrypted inquiries</span>
+            </div>
+
+            <div class="contact-info-block">
+                <span class="contact-info-title">WHATSAPP CONCIERGE</span>
+                <p class="contact-info-value">
+                    <a href="https://wa.me/447700900077?text=SkyTracker%20Flight%20Intelligence%20Inquiry" target="_blank" rel="noopener noreferrer" class="contact-info-link" style="display: inline-flex; align-items: center; gap: 6px;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                        </svg>
+                        <span>+44 7700 900077 (Concierge Desk)</span>
+                    </a>
+                </p>
+                <span class="font-mono" style="font-size: 0.72rem; color: var(--text-tertiary);">Direct encrypted messaging</span>
+            </div>
+
+            <div class="contact-info-block">
+                <span class="contact-info-title">RADAR OPERATIONS DESK</span>
+                <p class="contact-info-value font-mono">
+                    Continuous 24/7 UTC
+                </p>
+                <span class="font-mono" style="font-size: 0.72rem; color: var(--text-tertiary);">Zero interruption automated surveillance</span>
+            </div>
+
+            <div class="contact-info-block">
+                <span class="contact-info-title">GLOBAL HEADQUARTERS</span>
+                <p class="contact-info-value font-serif" style="font-size: 1.1rem;">
+                    SkyTracker Sovereign Suite<br>
+                    Terminal 2 Aviation Pavilion<br>
+                    International Departure Boulevard
+                </p>
+            </div>
+
+            <div class="contact-info-block">
+                <span class="contact-info-title">ENTERPRISE TELEMETRY</span>
+                <p class="contact-info-value font-mono" style="font-size: 0.82rem;">
+                    B2B GDS Arbitrage Feed · REST/WebSocket<br>
+                    <a href="mailto:api@skytrack.luxury" class="contact-info-link">api@skytrack.luxury</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('contactConciergeForm');
+    const submitBtn = document.getElementById('contactSubmitBtn');
+    const btnSpinner = document.getElementById('contactSpinner');
+    const btnText = document.getElementById('contactBtnText');
+    const errorBanner = document.getElementById('contactFormError');
+    const successCard = document.getElementById('contactSuccessCard');
+    const successMsg = document.getElementById('contactSuccessMsg');
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        errorBanner.style.display = 'none';
+        successCard.classList.remove('active');
+
+        const name = document.getElementById('contactName').value.trim();
+        const email = document.getElementById('contactEmail').value.trim();
+        const subject = document.getElementById('contactSubject').value;
+        const message = document.getElementById('contactMessage').value.trim();
+        const hp = document.getElementById('hp_username').value;
+
+        if (!name || name.length < 2) {
+            errorBanner.textContent = 'Please provide a valid full name.';
+            errorBanner.style.display = 'flex';
+            return;
+        }
+
+        if (!email || !email.includes('@')) {
+            errorBanner.textContent = 'Please provide a valid email address.';
+            errorBanner.style.display = 'flex';
+            return;
+        }
+
+        if (!message || message.length < 10) {
+            errorBanner.textContent = 'Please provide an inquiry message of at least 10 characters.';
+            errorBanner.style.display = 'flex';
+            return;
+        }
+
+        btnSpinner.style.display = 'inline-block';
+        btnText.textContent = 'Transmitting...';
+        submitBtn.disabled = true;
+
+        try {
+            const res = await fetch('/api/contact', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: name,
+                    email: email,
+                    subject: subject,
+                    message: message,
+                    hp_username: hp
+                })
+            });
+
+            const data = await res.json();
+            if (res.ok && data.success) {
+                successMsg.textContent = data.message || 'Your transmission has been securely logged with the SkyTracker Concierge.';
+                successCard.classList.add('active');
+                form.reset();
+            } else {
+                errorBanner.textContent = data.error || 'Failed to dispatch inquiry. Please check parameters.';
+                errorBanner.style.display = 'flex';
+            }
+        } catch {
+            errorBanner.textContent = 'Network communication failure. Please retry or email concierge directly.';
+            errorBanner.style.display = 'flex';
+        } finally {
+            btnSpinner.style.display = 'none';
+            btnText.textContent = 'Dispatch Transmission';
+            submitBtn.disabled = false;
+        }
+    });
+});
+</script>
+{% endblock %}

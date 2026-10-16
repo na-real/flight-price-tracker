@@ -1,0 +1,328 @@
+{% extends "base.html" %}
+
+{% block title %}Explore Flights & Fare Intelligence — SkyTracker{% endblock %}
+{% block meta_description %}Explore live airline flights, multi-provider fare comparisons, and real-time schedules across global destinations with SkyTracker.{% endblock %}
+{% block canonical_url %}https://skytrack-flights.onrender.com/flights{% endblock %}
+
+{% block content %}
+<section class="page-hero">
+    <div class="page-header">
+        <span class="page-badge font-mono">LIVE FLIGHT INTELLIGENCE</span>
+        <h1 class="page-title">Explore Global Horizons</h1>
+        <p class="page-subtitle">
+            Discover flight options across available providers with a clearer, more intuitive search experience.
+        </p>
+    </div>
+
+    <!-- MAIN SEARCH CONSOLE -->
+    <div class="search-console-card glass-panel" id="searchConsoleCard">
+        <!-- Trip Type Tabs -->
+        <div class="trip-type-selector" role="tablist" aria-label="Trip Configuration">
+            <button type="button" class="trip-tab-btn active" data-type="one-way" role="tab" aria-selected="true">
+                <span>One-Way</span>
+            </button>
+            <button type="button" class="trip-tab-btn" data-type="round-trip" role="tab" aria-selected="false">
+                <span>Round-Trip</span>
+            </button>
+            <button type="button" class="trip-tab-btn" data-type="multi-city" role="tab" aria-selected="false">
+                <span>Multi-City</span>
+            </button>
+        </div>
+
+        <!-- SEARCH FORM -->
+        <form id="flightSearchForm" class="flight-search-form" autocomplete="off" onsubmit="return false;">
+            <!-- Standard One-Way & Round-Trip Layout -->
+            <div id="standardTripFields" class="standard-trip-fields">
+                <div class="route-inputs-group">
+                    <!-- Origin -->
+                    <div class="airport-input-wrapper">
+                        <label for="departure" class="field-label font-mono">ORIGIN AIRPORT</label>
+                        <div class="input-with-icon">
+                            <span class="field-icon" aria-hidden="true">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                    <path d="M12 2v3m0 14v3M2 12h3m14 0h3"></path>
+                                </svg>
+                            </span>
+                            <input type="text" id="departure" name="departure" class="airport-input"
+                                placeholder="City or IATA (e.g. DEL, London)" required aria-required="true"
+                                aria-autocomplete="list" aria-controls="departureAutocomplete">
+                        </div>
+                        <div id="departureAutocomplete" class="autocomplete-dropdown" role="listbox" aria-label="Origin Airport Suggestions"></div>
+                    </div>
+
+                    <!-- 180° Swap Button -->
+                    <button type="button" id="swapAirportsBtn" class="swap-airports-btn" aria-label="Swap origin and destination airports" title="Swap airports">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="4" y1="9" x2="20" y2="9"></line>
+                            <polyline points="16 5 20 9 16 13"></polyline>
+                            <line x1="20" y1="15" x2="4" y2="15"></line>
+                            <polyline points="8 19 4 15 8 11"></polyline>
+                        </svg>
+                    </button>
+
+                    <!-- Destination -->
+                    <div class="airport-input-wrapper">
+                        <label for="arrival" class="field-label font-mono">DESTINATION AIRPORT</label>
+                        <div class="input-with-icon">
+                            <span class="field-icon" aria-hidden="true">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                                    <circle cx="12" cy="10" r="3"></circle>
+                                </svg>
+                            </span>
+                            <input type="text" id="arrival" name="arrival" class="airport-input"
+                                placeholder="City or IATA (e.g. BOM, Tokyo)" required aria-required="true"
+                                aria-autocomplete="list" aria-controls="arrivalAutocomplete">
+                        </div>
+                        <div id="arrivalAutocomplete" class="autocomplete-dropdown" role="listbox" aria-label="Destination Airport Suggestions"></div>
+                    </div>
+                </div>
+
+                <div class="dates-passengers-group">
+                    <!-- Outbound Date -->
+                    <div class="date-input-wrapper">
+                        <label for="outbound_date" class="field-label font-mono">DEPARTURE DATE</label>
+                        <input type="date" id="outbound_date" name="outbound_date" class="date-input font-mono" required aria-required="true">
+                    </div>
+
+                    <!-- Return Date (Round-Trip) -->
+                    <div class="date-input-wrapper return-date-wrap" id="returnDateWrap" style="display: none;">
+                        <label for="return_date" class="field-label font-mono">RETURN DATE</label>
+                        <input type="date" id="return_date" name="return_date" class="date-input font-mono">
+                    </div>
+
+                    <!-- Passenger & Cabin Class Selector -->
+                    <div class="passengers-class-wrapper">
+                        <label for="passengerSummaryBtn" class="field-label font-mono">TRAVELERS & CABIN</label>
+                        <button type="button" id="passengerSummaryBtn" class="passengers-summary-btn" aria-expanded="false" aria-controls="passengerDropdown">
+                            <span id="passengerSummaryText">1 Adult · Economy</span>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+
+                        <!-- Dropdown Panel -->
+                        <div id="passengerDropdown" class="passenger-dropdown-panel" aria-hidden="true">
+                            <div class="passenger-row">
+                                <div>
+                                    <span class="p-title">Adults</span>
+                                    <span class="p-sub font-mono">Age 12+</span>
+                                </div>
+                                <div class="counter-ctrl">
+                                    <button type="button" class="btn-counter" data-action="decrease" data-target="adultsCount" aria-label="Decrease Adults">−</button>
+                                    <span id="adultsCount" class="counter-val font-mono">1</span>
+                                    <button type="button" class="btn-counter" data-action="increase" data-target="adultsCount" aria-label="Increase Adults">+</button>
+                                </div>
+                            </div>
+                            <div class="passenger-row">
+                                <div>
+                                    <span class="p-title">Children</span>
+                                    <span class="p-sub font-mono">Age 2–11</span>
+                                </div>
+                                <div class="counter-ctrl">
+                                    <button type="button" class="btn-counter" data-action="decrease" data-target="childrenCount" aria-label="Decrease Children">−</button>
+                                    <span id="childrenCount" class="counter-val font-mono">0</span>
+                                    <button type="button" class="btn-counter" data-action="increase" data-target="childrenCount" aria-label="Increase Children">+</button>
+                                </div>
+                            </div>
+                            <div class="passenger-row">
+                                <div>
+                                    <span class="p-title">Infants</span>
+                                    <span class="p-sub font-mono">Under 2 (Lap)</span>
+                                </div>
+                                <div class="counter-ctrl">
+                                    <button type="button" class="btn-counter" data-action="decrease" data-target="infantsCount" aria-label="Decrease Infants">−</button>
+                                    <span id="infantsCount" class="counter-val font-mono">0</span>
+                                    <button type="button" class="btn-counter" data-action="increase" data-target="infantsCount" aria-label="Increase Infants">+</button>
+                                </div>
+                            </div>
+                            <div class="cabin-select-row">
+                                <label for="cabinClassSelect" class="field-label font-mono">CABIN CLASS</label>
+                                <select id="cabinClassSelect" class="cabin-select">
+                                    <option value="economy" selected>Economy</option>
+                                    <option value="premium_economy">Premium Economy</option>
+                                    <option value="business">Business Class</option>
+                                    <option value="first">First Class</option>
+                                </select>
+                            </div>
+                            <button type="button" id="applyPassengersBtn" class="cta-secondary apply-passengers-btn">Confirm Selection</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Multi-City Layout Builder -->
+            <div id="multiCityFields" class="multi-city-fields" style="display: none;">
+                <div id="multiCityLegsContainer" class="multi-city-legs-container">
+                    <!-- Legs generated dynamically via app.js -->
+                </div>
+                <button type="button" id="addLegBtn" class="cta-secondary add-leg-btn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    <span>Add Trajectory Leg (Max 5)</span>
+                </button>
+            </div>
+
+            <!-- Search Action CTA -->
+            <div class="search-action-bar">
+                <button type="submit" id="searchSubmitBtn" class="primary-btn search-submit-btn">
+                    <span class="btn-loader" id="searchBtnSpinner" aria-hidden="true" style="display: none;"></span>
+                    <span id="searchBtnText">Surveil Flight Trajectories</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                        <polyline points="12 5 19 12 12 19"></polyline>
+                    </svg>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- ERROR BANNER -->
+    <div id="searchErrorBanner" class="auth-error-banner" style="display: none; margin-top: 24px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <span id="searchErrorText">Unable to retrieve flight trajectories. Please check parameters.</span>
+    </div>
+
+    <!-- FILTER & SORT CONTROLS BAR -->
+    <div id="flightFilterBar" class="filter-controls-bar glass-panel" style="display: none; margin-top: 32px;">
+        <div class="filter-group">
+            <span class="filter-label font-mono">STOPS:</span>
+            <div class="filter-pills" role="radiogroup" aria-label="Filter by stops">
+                <button type="button" class="filter-pill active" data-stops="all">All</button>
+                <button type="button" class="filter-pill" data-stops="0">Nonstop</button>
+                <button type="button" class="filter-pill" data-stops="1">1 Stop</button>
+                <button type="button" class="filter-pill" data-stops="2">2+ Stops</button>
+            </div>
+        </div>
+
+        <div class="filter-group">
+            <span class="filter-label font-mono">SORT BY:</span>
+            <select id="flightSortSelect" class="filter-select font-mono">
+                <option value="price_asc">Price: Lowest First</option>
+                <option value="price_desc">Price: Highest First</option>
+                <option value="duration_asc">Duration: Shortest</option>
+                <option value="departure_asc">Departure: Earliest</option>
+            </select>
+        </div>
+
+        <div class="search-meta-results">
+            <span id="resultsCountLabel" class="font-mono text-gold">0 FLIGHTS LOCATED</span>
+        </div>
+    </div>
+
+    <!-- RESULTS TIMELINE -->
+    <div id="resultsContainer" class="results-container" style="margin-top: 24px;">
+        <!-- Initial Ambient Prompt State -->
+        <div id="emptySearchPrompt" class="empty-state-card glass-panel" style="padding: 60px 24px; text-align: center;">
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" style="color: var(--accent-gold); margin-bottom: 16px; opacity: 0.6;">
+                <circle cx="24" cy="24" r="21" stroke="currentColor" stroke-width="1.2" stroke-opacity="0.3"/>
+                <ellipse cx="24" cy="24" rx="20" ry="7.5" transform="rotate(-32 24 24)" stroke="currentColor" stroke-width="1.6"/>
+                <path d="M 33 13 C 27 9, 17 11, 16 19 C 15 26, 33 24, 32 31 C 31 37, 21 39, 15 35" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+            </svg>
+            <h3 class="font-serif" style="font-size: 1.6rem; margin-bottom: 8px;">Awaiting Trajectory Query</h3>
+            <p style="color: var(--text-secondary); max-width: 500px; margin: 0 auto; font-size: 0.92rem;">
+                Select origin, destination, and departure dates above to surveil real-time airline fares and carrier availability.
+            </p>
+        </div>
+
+        <!-- Dynamic Flight Cards Rendered Here via app.js -->
+        <div id="flightsList" class="flights-list"></div>
+    </div>
+</section>
+
+<!-- PRICE TRACK MODAL -->
+<div id="trackPriceModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="trackModalTitle" style="display: none;">
+    <div class="modal-card glass-panel">
+        <div class="modal-header">
+            <div>
+                <span class="page-badge font-mono">AUTOMATED RADAR</span>
+                <h3 id="trackModalTitle" class="modal-title font-serif">Track Route Fares</h3>
+            </div>
+            <button type="button" id="closeTrackModalBtn" class="modal-close-btn" aria-label="Close dialog">×</button>
+        </div>
+        <form id="trackRouteForm" class="track-form" onsubmit="return false;">
+            <div class="modal-route-preview font-mono" id="modalRouteSummary">
+                DEL → BOM · 2026-11-15
+            </div>
+            <div class="form-group">
+                <label for="trackTargetPrice" class="form-label">TARGET PRICE (INR)</label>
+                <input type="number" id="trackTargetPrice" class="form-input font-mono" placeholder="e.g. 4500" required>
+            </div>
+            <div class="form-group">
+                <label for="trackEmail" class="form-label">NOTIFICATION EMAIL</label>
+                <input type="email" id="trackEmail" class="form-input" placeholder="sovereign@domain.com" required value="{{ logged_in_user or '' }}">
+            </div>
+            <div id="trackModalError" class="auth-error-banner" style="display: none;"></div>
+            <div id="trackModalSuccess" class="contact-success-card" style="display: none;"></div>
+            <button type="submit" id="submitTrackBtn" class="primary-btn" style="width: 100%; margin-top: 10px;">
+                <span>Arm Price Radar</span>
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // Deep-linking: Parse URL query parameters to auto-populate form and trigger search
+    const urlParams = new URLSearchParams(window.location.search);
+    const dep = urlParams.get('departure');
+    const arr = urlParams.get('arrival');
+    const outDate = urlParams.get('outbound_date');
+    const retDate = urlParams.get('return_date');
+
+    if (dep) {
+        const depInput = document.getElementById('departure');
+        if (depInput) {
+            depInput.value = dep;
+            depInput.dataset.iata = dep.substring(0, 3).toUpperCase();
+        }
+    }
+    if (arr) {
+        const arrInput = document.getElementById('arrival');
+        if (arrInput) {
+            arrInput.value = arr;
+            arrInput.dataset.iata = arr.substring(0, 3).toUpperCase();
+        }
+    }
+    if (outDate) {
+        const outDateInput = document.getElementById('outbound_date');
+        if (outDateInput) outDateInput.value = outDate;
+    } else {
+        // Set default 14 days out if not specified
+        const outDateInput = document.getElementById('outbound_date');
+        if (outDateInput && !outDateInput.value) {
+            const target = new Date();
+            target.setDate(target.getDate() + 14);
+            outDateInput.value = target.toISOString().split('T')[0];
+        }
+    }
+    if (retDate) {
+        const retDateInput = document.getElementById('return_date');
+        const retWrap = document.getElementById('returnDateWrap');
+        if (retDateInput && retWrap) {
+            retDateInput.value = retDate;
+            retWrap.style.display = 'block';
+            const roundTripBtn = document.querySelector('[data-type="round-trip"]');
+            if (roundTripBtn) roundTripBtn.click();
+        }
+    }
+
+    // Auto-trigger search if both origin and destination provided
+    if (dep && arr) {
+        setTimeout(() => {
+            const searchSubmitBtn = document.getElementById('searchSubmitBtn');
+            if (searchSubmitBtn) searchSubmitBtn.click();
+        }, 300);
+    }
+});
+</script>
+{% endblock %}

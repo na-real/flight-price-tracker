@@ -26,7 +26,41 @@ let allFlightResults = [];
 
 let airportCache = {};
 
+/* =========================================================
+   TRACKED FLIGHTS AUTHORIZATION TOKENS (IDOR MITIGATION)
+========================================================= */
 
+function saveDeleteToken(id, token) {
+    if (!id || !token) return;
+    try {
+        const tokens = JSON.parse(localStorage.getItem("skytracker_delete_tokens") || "{}");
+        tokens[String(id)] = String(token);
+        localStorage.setItem("skytracker_delete_tokens", JSON.stringify(tokens));
+    } catch (e) {
+        console.warn("Could not save delete token to localStorage", e);
+    }
+}
+
+function getDeleteToken(id) {
+    if (!id) return null;
+    try {
+        const tokens = JSON.parse(localStorage.getItem("skytracker_delete_tokens") || "{}");
+        return tokens[String(id)] || null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function removeDeleteToken(id) {
+    if (!id) return;
+    try {
+        const tokens = JSON.parse(localStorage.getItem("skytracker_delete_tokens") || "{}");
+        delete tokens[String(id)];
+        localStorage.setItem("skytracker_delete_tokens", JSON.stringify(tokens));
+    } catch (e) {
+        console.warn("Could not remove delete token from localStorage", e);
+    }
+}
 
 /* =========================================================
 
@@ -5022,15 +5056,9 @@ if ($("trackForm")) {
 
                     "Flight tracking started!";
 
-
-
-
-
-
-
-
-
-
+                if (data && data.id && data.delete_token) {
+                    saveDeleteToken(data.id, data.delete_token);
+                }
 
                 loadTracked();
 
@@ -5849,12 +5877,28 @@ async function loadTracked() {
             button.addEventListener("click", async () => {
                 const id = button.dataset.id;
                 if (!id) return;
+                const token = getDeleteToken(id);
+                if (!token) {
+                    alert("Authorization token not found on this device for flight #" + id + ". Only the user on the original device who started tracking can delete this route.");
+                    return;
+                }
                 try {
                     button.disabled = true;
                     button.style.opacity = "0.5";
-                    const res = await fetch(`/api/tracked/${id}`, { method: "DELETE" });
+                    const res = await fetch(`/api/tracked/${id}`, {
+                        method: "DELETE",
+                        headers: {
+                            "X-Delete-Token": token
+                        }
+                    });
                     if (res.ok) {
+                        removeDeleteToken(id);
                         loadTracked();
+                    } else {
+                        const errData = await res.json().catch(() => ({}));
+                        alert(errData.error || "Failed to delete tracked flight.");
+                        button.disabled = false;
+                        button.style.opacity = "1";
                     }
                 } catch (err) {
                     console.error("Failed to delete tracked flight:", err);
@@ -6067,19 +6111,13 @@ async function showHistory(id) {
 
 
 
-        const response =
+        const token = getDeleteToken(id);
+        const headers = {};
+        if (token) {
+            headers["X-Delete-Token"] = token;
+        }
 
-
-
-            await fetch(
-
-
-
-                `/api/history/${id}`
-
-
-
-            );
+        const response = await fetch(`/api/history/${id}`, { headers });
 
 
 
@@ -7345,7 +7383,23 @@ async function openExactFlightComparison(flight) {
     } catch (e) {}
 
     const compSection = $("comparison-section");
-    if (!compSection) return;
+    if (!compSection) {
+        // When on /flights or another standalone page, navigate directly to /compare
+        // preserving exact flight payload in sessionStorage and route query params in URL
+        const dep = flight.departure_airport || (currentSearchContext?.departureCode) || $("departure")?.dataset?.iata || $("departure")?.value?.substring(0, 3) || "DEL";
+        const arr = flight.arrival_airport || (currentSearchContext?.arrivalCode) || $("arrival")?.dataset?.iata || $("arrival")?.value?.substring(0, 3) || "BOM";
+        const date = currentSearchContext?.departureDate || $("outbound_date")?.value || "";
+        const retDate = currentSearchContext?.returnDate || $("return_date")?.value || "";
+        const params = new URLSearchParams({
+            departure: dep.toUpperCase(),
+            arrival: arr.toUpperCase(),
+            outbound_date: date,
+            selected: "true"
+        });
+        if (retDate) params.set("return_date", retDate);
+        window.location.href = `/compare?${params.toString()}`;
+        return;
+    }
     compSection.style.display = "block";
 
     const navCompare = $("navCompareLink");
@@ -7786,7 +7840,7 @@ function renderProviderComparison(comparison) {
         const notices = [];
         comparison.providers_summary.forEach(p => {
             if (p.status === "unconfigured") {
-                notices.push(`${p.provider_name} is unconfigured (${p.message}). Showing verified direct carrier & partner offers.`);
+                notices.push(`${p.provider_name} is unconfigured (${p.message}). Showing direct carrier & partner fare estimates.`);
             } else if (p.status === "rate_limited") {
                 notices.push(`${p.provider_name}: ${p.message}`);
             }

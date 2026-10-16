@@ -129,3 +129,57 @@ def test_dedicated_flight_compare_endpoint(client):
     # Verify provider URLs
     for o in offers:
         assert o["booking_url"].startswith("http")
+
+
+def test_standalone_route_comparison_request(client):
+    """
+    FIX 4 Regression: Verify standalone /compare form request (route-based without
+    reference flight) generates multi-provider comparison offers and valid schema.
+    """
+    res = client.post("/api/flight/compare", json={
+        "departure": "DEL",
+        "arrival": "BOM",
+        "outbound_date": "2026-11-25"
+    })
+    assert res.status_code == 200
+    data = res.get_json()
+
+    assert "offers" in data
+    assert "comparison_offers" in data
+    assert len(data["offers"]) > 0
+
+    # Ensure provider and provider_name are present for frontend template
+    for offer in data["offers"]:
+        assert "provider" in offer
+        assert "provider_name" in offer
+        assert "price" in offer
+        assert offer["price"] > 0
+        assert "booking_url" in offer
+        assert offer["booking_url"].startswith("http")
+
+    assert "stats" in data
+    assert data["stats"]["total_offers"] >= len(data["offers"])
+
+    # Test error cases:
+    # 1. Missing fields
+    res_missing = client.post("/api/flight/compare", json={
+        "departure": "DEL"
+    })
+    assert res_missing.status_code == 400
+
+    # 2. Identical airports
+    res_same = client.post("/api/flight/compare", json={
+        "departure": "DEL",
+        "arrival": "DEL",
+        "outbound_date": "2026-11-25"
+    })
+    assert res_same.status_code == 400
+    assert "identical" in res_same.get_json()["error"].lower()
+
+    # 3. Invalid airport code
+    res_invalid_iata = client.post("/api/flight/compare", json={
+        "departure": "INVALID",
+        "arrival": "BOM",
+        "outbound_date": "2026-11-25"
+    })
+    assert res_invalid_iata.status_code == 400

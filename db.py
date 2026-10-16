@@ -8,16 +8,47 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 DB_PATH = os.getenv("DB_PATH", "flights.db")
 
 
+def _is_production():
+    """Determine if running in a production environment."""
+    return bool(
+        os.getenv("FLASK_ENV") == "production"
+        or os.getenv("RENDER")
+        or os.getenv("ENV") == "production"
+        or os.getenv("ENVIRONMENT") == "production"
+    )
+
+
 def db():
     """Create and return a database connection."""
+    database_url = os.getenv("DATABASE_URL")
+
+    # Production database enforcement: prevent silent SQLite fallback
+    if _is_production():
+        if not database_url or not database_url.strip():
+            raise RuntimeError(
+                "CRITICAL: DATABASE_URL environment variable must be set in production. "
+                "Silent fallback to SQLite is prohibited."
+            )
+        clean_url = database_url.strip().lower()
+        if "username:password@hostname" in clean_url or "user:password@hostname" in clean_url:
+            raise RuntimeError(
+                "CRITICAL: DATABASE_URL is configured with an unconfigured placeholder. "
+                "A valid PostgreSQL connection string is required in production."
+            )
 
     # Production: PostgreSQL
-    if DATABASE_URL:
-        import psycopg
-        from psycopg.rows import dict_row
+    if database_url:
+        import importlib
+        try:
+            psycopg = importlib.import_module("psycopg")
+            dict_row = importlib.import_module("psycopg.rows").dict_row
+        except ImportError as err:
+            raise RuntimeError(
+                f"PostgreSQL driver 'psycopg' is required when DATABASE_URL is configured: {err}"
+            )
 
         conn = psycopg.connect(
-            DATABASE_URL,
+            database_url.strip(),
             sslmode="require",
             row_factory=dict_row
         )
@@ -31,10 +62,16 @@ def db():
 
 def init_db():
     """Create required database tables if they don't exist."""
+    database_url = os.getenv("DATABASE_URL")
+    if _is_production() and (not database_url or not database_url.strip()):
+        raise RuntimeError(
+            "CRITICAL: DATABASE_URL environment variable must be set in production. "
+            "Silent fallback to SQLite is prohibited."
+        )
 
     conn = db()
 
-    if DATABASE_URL:
+    if database_url:
         # PostgreSQL
         conn.execute("""
             CREATE TABLE IF NOT EXISTS tracked_flights (
@@ -60,6 +97,16 @@ def init_db():
                 checked_at TEXT NOT NULL,
                 FOREIGN KEY (tracked_id)
                     REFERENCES tracked_flights(id)
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id BIGSERIAL PRIMARY KEY,
+                email TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                password_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL
             )
         """)
 
@@ -89,6 +136,16 @@ def init_db():
                 checked_at TEXT NOT NULL,
                 FOREIGN KEY (tracked_id)
                     REFERENCES tracked_flights(id)
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                password_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL
             )
         """)
 

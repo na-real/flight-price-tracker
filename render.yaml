@@ -3,8 +3,16 @@ services:
     name: flight-price-tracker
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python app.py
+    startCommand: gunicorn -w 2 -b 0.0.0.0:$PORT app:app
     envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: FLASK_DEBUG
+        value: "0"
+      - key: SECRET_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
       - key: SERPAPI_KEY
         sync: false
       - key: SMTP_HOST
@@ -23,6 +31,8 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: python checker.py
     envVars:
+      - key: DATABASE_URL
+        sync: false
       - key: SERPAPI_KEY
         sync: false
       - key: SMTP_HOST

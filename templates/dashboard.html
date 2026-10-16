@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block title %}Member Dashboard — SkyTracker Sovereign Access{% endblock %}
+{% block meta_description %}Sovereign travel dashboard for SkyTracker members. Manage tracked flight trajectories, personalized radar alert thresholds, and travel profile settings.{% endblock %}
+{% block meta_robots %}noindex, nofollow{% endblock %}
+{% block canonical_url %}https://skytrack-flights.onrender.com/dashboard{% endblock %}
+
+{% block content %}
+<section class="page-hero">
+    <div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 20px;">
+        <div>
+            <span class="page-badge font-mono">SOVEREIGN MEMBER ARCHIVE</span>
+            <h1 class="page-title">Personal Flight Command</h1>
+            <p class="page-subtitle">
+                Welcome back, {{ user_name or 'Traveler' }}. Your personal route surveillance and alert history are synchronized below.
+            </p>
+        </div>
+        <div>
+            <form method="POST" action="/logout" style="display: inline; margin: 0;">
+                <button type="submit" class="cta-secondary" style="padding: 10px 22px; font-size: 0.82rem; cursor: pointer; display: inline-flex; align-items: center; border: 1px solid var(--border-hairline); background: var(--bg-card); color: var(--text-primary);">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16 17 21 12 16 7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                    </svg>
+                    <span>Terminate Session</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- STATS TELEMETRY -->
+    <div class="dashboard-stats-row">
+        <div class="dash-stat-card">
+            <span class="dash-stat-label">MONITORED TRAJECTORIES</span>
+            <span class="dash-stat-value" id="dashTrackedCount">—</span>
+            <span class="font-mono" style="font-size: 0.7rem; color: var(--text-tertiary);">Live radar surveillance</span>
+        </div>
+        <div class="dash-stat-card">
+            <span class="dash-stat-label">AUTHENTICATED IDENTITY</span>
+            <span class="dash-stat-value" style="font-size: 1.25rem; font-family: var(--font-sans); color: var(--text-primary);">
+                {{ user_name or 'Member' }}
+            </span>
+            <span class="font-mono" style="font-size: 0.7rem; color: var(--accent-gold);">Sovereign Tier Tier 1</span>
+        </div>
+        <div class="dash-stat-card">
+            <span class="dash-stat-label">RADAR HEARTBEAT</span>
+            <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+                <span class="status-dot status-active"></span>
+                <span class="font-mono" style="font-size: 0.95rem; color: var(--success); font-weight: 700;">SYNCHRONIZED</span>
+            </div>
+            <span class="font-mono" style="font-size: 0.7rem; color: var(--text-tertiary);">Continuous 24/7 scanning</span>
+        </div>
+    </div>
+
+    <!-- TWO-COLUMN DASHBOARD GRID -->
+    <div class="dashboard-grid">
+        <!-- Col 1: Profile & Preferences Card -->
+        <div class="dashboard-profile-card">
+            <div class="dashboard-avatar-ring">
+                {{ (user_name or 'S')[0].upper() }}
+            </div>
+            <div class="profile-meta-center">
+                <h3 class="profile-name">{{ user_name or 'Sovereign Member' }}</h3>
+                <span class="profile-email">{{ logged_in_user }}</span>
+                <div>
+                    <span class="profile-tier-badge font-mono">SOVEREIGN PATRON</span>
+                </div>
+            </div>
+
+            <hr style="border: none; border-top: 1px solid var(--border-hairline);">
+
+            <div>
+                <span class="font-mono" style="font-size: 0.68rem; letter-spacing: 0.12em; color: var(--accent-gold); text-transform: uppercase;">
+                    SOVEREIGN PREFERENCES
+                </span>
+                <div style="margin-top: 14px; display: flex; flex-direction: column; gap: 12px;" class="font-mono" style="font-size: 0.8rem;">
+                    <div style="display: flex; justify-content: space-between;">
+                        <span style="color: var(--text-secondary);">Base Currency:</span>
+                        <span style="color: var(--text-primary); font-weight: 600;">INR (₹)</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span style="color: var(--text-secondary);">Alert Dispatch:</span>
+                        <span style="color: var(--text-primary); font-weight: 600;">Instant E-Mail</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span style="color: var(--text-secondary);">Radar Sensitivity:</span>
+                        <span style="color: var(--accent-gold); font-weight: 600;">Strict Parity</span>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 10px;">
+                <a href="/flights" class="primary-btn" style="width: 100%; text-align: center;">
+                    <span>Launch New Search</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- Col 2: Active Monitored Trajectories -->
+        <div class="dashboard-main-panel">
+            <div class="glass-panel" style="padding: 32px; border-radius: var(--radius-xl);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+                    <div>
+                        <h3 class="font-serif" style="font-size: 1.5rem;">Your Radar Surveillance Queue</h3>
+                        <p style="font-size: 0.84rem; color: var(--text-secondary); margin-top: 2px;">
+                            Active routes monitored against your personalized target thresholds.
+                        </p>
+                    </div>
+                    <a href="/tracking" class="cta-secondary" style="padding: 6px 14px; font-size: 0.74rem;">
+                        <span>Arm Additional Route</span>
+                    </a>
+                </div>
+
+                <div id="dashTrackedFeed" style="display: flex; flex-direction: column; gap: 14px;">
+                    <div style="padding: 40px; text-align: center; color: var(--text-secondary);">
+                        <span class="btn-loader" style="display: inline-block; margin-bottom: 12px;"></span>
+                        <p class="font-mono" style="font-size: 0.82rem;">Loading monitored routes...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- QUICK SHORTCUTS CARD -->
+            <div class="glass-panel" style="padding: 28px 32px; border-radius: var(--radius-xl); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">
+                <div>
+                    <h4 class="font-serif" style="font-size: 1.3rem;">Explore Curated Sanctuaries</h4>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 2px;">
+                        Chart flights to Kyoto, Amalfi, or Reykjavik directly.
+                    </p>
+                </div>
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                    <a href="/flights?departure=DEL&arrival=HND" class="cta-secondary" style="font-size: 0.76rem;">DEL → Tokyo</a>
+                    <a href="/flights?departure=LHR&arrival=NAP" class="cta-secondary" style="font-size: 0.76rem;">LHR → Naples</a>
+                    <a href="/flights?departure=JFK&arrival=KEF" class="cta-secondary" style="font-size: 0.76rem;">JFK → Reykjavik</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const feed = document.getElementById('dashTrackedFeed');
+    const metricCount = document.getElementById('dashTrackedCount');
+
+    fetch('/api/tracked')
+        .then(r => r.json())
+        .then(data => {
+            if (Array.isArray(data)) {
+                if (metricCount) metricCount.textContent = data.length;
+
+                if (data.length === 0) {
+                    feed.innerHTML = `
+                        <div style="padding: 40px 20px; text-align: center; color: var(--text-secondary);">
+                            <p class="font-serif" style="font-size: 1.2rem; margin-bottom: 6px;">No Monitored Trajectories Active</p>
+                            <p style="font-size: 0.84rem; margin-bottom: 16px;">Set a target price on any flight to begin automated surveillance.</p>
+                            <a href="/flights" class="cta-secondary" style="font-size: 0.78rem;">Search Flights Now</a>
+                        </div>
+                    `;
+                    return;
+                }
+
+                feed.innerHTML = data.map(item => {
+                    const current = Number(item.last_price || item.lowest_price || 0);
+                    const target = Number(item.target_price || 0);
+                    const isMet = current > 0 && current <= target;
+
+                    return `
+                        <div class="glass-panel" style="padding: 18px 22px; border-radius: var(--radius-lg); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+                            <div>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <span class="font-serif" style="font-size: 1.25rem; font-weight: 600; color: var(--text-primary);">
+                                        ${item.departure} → ${item.arrival}
+                                    </span>
+                                    <span class="telemetry-pill ${isMet ? 'text-gold' : ''}" style="font-size: 0.65rem;">
+                                        ${isMet ? 'TARGET MET' : 'SURVEILLING'}
+                                    </span>
+                                </div>
+                                <div class="font-mono" style="font-size: 0.74rem; color: var(--text-secondary); margin-top: 4px;">
+                                    Outbound: ${item.outbound_date} · Target: ₹${target.toLocaleString('en-IN')}
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 18px;">
+                                <div style="text-align: right;" class="font-mono">
+                                    <div style="font-size: 1.15rem; font-weight: 700; color: ${isMet ? 'var(--accent-gold)' : 'var(--text-primary)'};">
+                                        ₹${current > 0 ? current.toLocaleString('en-IN') : 'Scanning'}
+                                    </div>
+                                    <div style="font-size: 0.62rem; color: var(--text-tertiary);">RECORDED FARE</div>
+                                </div>
+                                <a href="/compare?departure=${item.departure}&arrival=${item.arrival}&outbound_date=${item.outbound_date}" class="cta-secondary" style="padding: 6px 12px; font-size: 0.72rem;">
+                                    Compare
+                                </a>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        })
+        .catch(() => {
+            feed.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--danger);">Failed to load trajectories. Please refresh.</div>`;
+        });
+});
+</script>
+{% endblock %}

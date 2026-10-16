@@ -19,7 +19,7 @@ class ExpediaFlightProvider(BaseFlightProvider):
             provider_type="ota"
         )
         self.last_status = "active"
-        self.last_message = "Expedia partner search integration active"
+        self.last_message = "Expedia partner search active (estimated fares derived from reference flight)"
         self.last_offer_count = 0
 
     def is_configured(self) -> bool:
@@ -31,7 +31,7 @@ class ExpediaFlightProvider(BaseFlightProvider):
             provider_name=self.provider_name,
             provider_type=self.provider_type,
             status=self.last_status,
-            is_live=True,
+            is_live=False,
             message=self.last_message,
             offers_count=self.last_offer_count,
         )
@@ -84,7 +84,7 @@ class ExpediaFlightProvider(BaseFlightProvider):
                 price=offer_price,
                 currency="INR",
                 booking_url=booking_url,
-                baggage="Cabin: 7 kg • Check-in: 15 kg",
+                baggage="Cabin: 7 kg • Check-in: 15 kg (Estimated Fare)",
                 segments=flight.get("segments") or [],
                 layovers=flight.get("layovers") or [],
             )

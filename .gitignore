@@ -1,6 +1,26 @@
+# Environment variables & secrets
 .env
+.env.*
+!.env.example
+
+# Databases
 *.db
+*.sqlite
+*.sqlite3
+
+# Python bytecode & cache
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Virtual environments
 .venv/
+venv/
+ENV/
+
+# OS & build artifacts
 *.exe
+*.log
+.DS_Store

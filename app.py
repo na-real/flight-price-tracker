@@ -3,9 +3,19 @@ from validation import (
     get_missing_fields,
     validate_target_price,
     clean_iata,
+    validate_email,
+    validate_iata_code,
     validate_date_sequence,
     validate_passenger_counts,
     validate_multi_city_legs,
+)
+from security import (
+    rate_limit,
+    apply_security_headers,
+    generate_delete_token,
+    verify_delete_token,
+    check_bot_honeypot,
+    SECRET_KEY,
 )
 import math
 import hashlib
@@ -13,9 +23,22 @@ import csv
 import os
 import sqlite3
 import sys
+from urllib.parse import urlsplit
 from datetime import datetime, timezone
 
-from flask import Flask, render_template, request, jsonify, Response
+from flask import (
+    Flask,
+    render_template,
+    request,
+    jsonify,
+    Response,
+    send_from_directory,
+    session,
+    redirect,
+    url_for,
+)
+from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 
 from services.flight_api import (
@@ -31,6 +54,25 @@ load_dotenv()
 
 
 app = Flask(__name__)
+# Restrict ProxyFix to required hops only; disable x_host and x_prefix to prevent Host header poisoning
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=0, x_prefix=0)
+# Secret key is enforced by security._load_secret_key():
+# - Mandatory and validated in production (fails startup if missing or insecure; no ephemeral secrets in prod)
+# - Ephemeral fallback key is strictly restricted to local development / testing
+app.config["SECRET_KEY"] = SECRET_KEY
+app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024  # 1 MB max request size
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = (os.getenv("FLASK_ENV") == "production" or bool(os.getenv("RENDER")))
+
+
+# ============================================================
+# PRODUCTION SECURITY HEADERS & CORS
+# ============================================================
+@app.after_request
+def add_security_headers(response):
+    """Add defense-in-depth HTTP security headers and CORS controls to all responses."""
+    return apply_security_headers(response)
 
 
 # ============================================================
@@ -267,15 +309,243 @@ def get_nearby_airports(
 
 
 # ============================================================
-# HOME PAGE
+# GLOBAL TEMPLATE CONTEXT
+# ============================================================
+@app.context_processor
+def inject_global_template_context():
+    return {
+        "current_year": datetime.now(timezone.utc).year,
+        "logged_in_user": session.get("user_email"),
+        "user_name": session.get("user_name"),
+    }
+
+
+# ============================================================
+# MULTIPAGE WEB ROUTES
 # ============================================================
 
 @app.get("/")
 def index():
+    return render_template("index.html", active_page="home")
 
-    return render_template(
-        "index.html"
-    )
+
+@app.get("/flights")
+def flights_page():
+    return render_template("flights.html", active_page="flights")
+
+
+@app.get("/compare")
+def compare_page():
+    return render_template("compare.html", active_page="compare")
+
+
+@app.get("/tracking")
+def tracking_page():
+    return render_template("tracking.html", active_page="tracking")
+
+
+@app.get("/about")
+def about_page():
+    return render_template("about.html", active_page="about")
+
+
+@app.get("/contact")
+def contact_page():
+    return render_template("contact.html", active_page="contact")
+
+
+@app.post("/api/contact")
+@rate_limit(limit=10, window=60)
+def api_contact():
+    data = request.get_json(silent=True) or {}
+    if check_bot_honeypot(data.get("hp_username", "")):
+        return jsonify({"success": True, "message": "Inquiry submitted."}), 200
+
+    name = (data.get("name") or "").strip()
+    email = (data.get("email") or "").strip()
+    subject = (data.get("subject") or "General Inquiry").strip()
+    message = (data.get("message") or "").strip()
+
+    if not name or len(name) < 2 or len(name) > 100:
+        return jsonify({"error": "Please provide a valid name (2-100 characters)."}), 400
+
+    try:
+        validate_email(email)
+    except ValueError:
+        return jsonify({"error": "Please provide a valid email address."}), 400
+
+    if not message or len(message) < 10 or len(message) > 4000:
+        return jsonify({"error": "Please provide a detailed inquiry message (10-4000 characters)."}), 400
+
+    return jsonify({
+        "success": True,
+        "message": "Your transmission has been logged with the SkyTracker Concierge. We will reply within 24 hours."
+    }), 200
+
+
+def is_safe_redirect_url(target):
+    """Ensure redirect URL is a relative local destination to prevent Open Redirects (CWE-601)."""
+    if not target or not isinstance(target, str):
+        return False
+    target = target.strip()
+    if not target.startswith("/") or target.startswith("//") or target.startswith("/\\"):
+        return False
+    parsed = urlsplit(target)
+    return parsed.scheme in ("", "http", "https") and not parsed.netloc
+
+
+@app.route("/login", methods=["GET", "POST"])
+@rate_limit(limit=10, window=60, methods=("POST",))
+def login_page():
+    if request.method == "POST":
+        data = request.get_json(silent=True) if request.is_json else request.form
+        raw_email = (data.get("email") or "").strip()
+        password = data.get("password") or ""
+        raw_next = request.args.get("next") or (data.get("next") if isinstance(data, dict) else "") or ""
+        next_url = raw_next if is_safe_redirect_url(raw_next) else url_for("dashboard_page")
+
+        try:
+            email = validate_email(raw_email).lower()
+        except ValueError:
+            if request.is_json:
+                return jsonify({"error": "Please enter a valid email address."}), 400
+            return render_template("login.html", error="Please enter a valid email address.", active_page="login"), 400
+
+        if not password:
+            if request.is_json:
+                return jsonify({"error": "Password is required."}), 400
+            return render_template("login.html", error="Password is required.", active_page="login"), 400
+
+        conn = db()
+        try:
+            if DATABASE_URL:
+                user = conn.execute(
+                    "SELECT id, email, name, password_hash FROM users WHERE email = %s",
+                    (email,)
+                ).fetchone()
+            else:
+                user = conn.execute(
+                    "SELECT id, email, name, password_hash FROM users WHERE email = ?",
+                    (email,)
+                ).fetchone()
+        finally:
+            conn.close()
+
+        if not user or not check_password_hash(user["password_hash"], password):
+            if request.is_json:
+                return jsonify({"error": "Invalid email or security keyword."}), 401
+            return render_template("login.html", error="Invalid email or security keyword.", active_page="login"), 401
+
+        # Clear any pre-existing session state to mitigate session fixation & cross-contamination
+        session.clear()
+        session["user_email"] = user["email"]
+        session["user_name"] = user["name"]
+
+        if request.is_json:
+            return jsonify({"success": True, "redirect": next_url}), 200
+        return redirect(next_url)
+
+    if session.get("user_email"):
+        return redirect(url_for("dashboard_page"))
+
+    return render_template("login.html", active_page="login")
+
+
+@app.route("/signup", methods=["GET", "POST"])
+@rate_limit(limit=5, window=60, methods=("POST",))
+def signup_page():
+    if request.method == "POST":
+        data = request.get_json(silent=True) if request.is_json else request.form
+        name = (data.get("name") or "").strip()
+        raw_email = (data.get("email") or "").strip()
+        password = data.get("password") or ""
+        confirm_password = data.get("confirm_password") or ""
+
+        if not name or len(name) < 2:
+            if request.is_json:
+                return jsonify({"error": "Please provide your full name."}), 400
+            return render_template("signup.html", error="Please provide your full name.", active_page="signup"), 400
+
+        try:
+            email = validate_email(raw_email).lower()
+        except ValueError:
+            if request.is_json:
+                return jsonify({"error": "Please provide a valid email address."}), 400
+            return render_template("signup.html", error="Please provide a valid email address.", active_page="signup"), 400
+
+        if not password or len(password) < 8:
+            if request.is_json:
+                return jsonify({"error": "Password must be at least 8 characters long."}), 400
+            return render_template("signup.html", error="Password must be at least 8 characters long.", active_page="signup"), 400
+
+        if password != confirm_password:
+            if request.is_json:
+                return jsonify({"error": "Passwords do not match."}), 400
+            return render_template("signup.html", error="Passwords do not match.", active_page="signup"), 400
+
+        conn = db()
+        try:
+            if DATABASE_URL:
+                existing = conn.execute("SELECT id FROM users WHERE email = %s", (email,)).fetchone()
+            else:
+                existing = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+
+            if existing:
+                if request.is_json:
+                    return jsonify({"error": "An account with this email address already exists."}), 400
+                return render_template("signup.html", error="An account with this email address already exists.", active_page="signup"), 400
+
+            password_hash = generate_password_hash(password)
+            created_at = datetime.now(timezone.utc).isoformat()
+
+            if DATABASE_URL:
+                conn.execute(
+                    "INSERT INTO users (email, name, password_hash, created_at) VALUES (%s, %s, %s, %s)",
+                    (email, name, password_hash, created_at)
+                )
+            else:
+                conn.execute(
+                    "INSERT INTO users (email, name, password_hash, created_at) VALUES (?, ?, ?, ?)",
+                    (email, name, password_hash, created_at)
+                )
+            conn.commit()
+        finally:
+            conn.close()
+
+        # Clear session before setting newly registered user identity
+        session.clear()
+        session["user_email"] = email
+        session["user_name"] = name
+
+        if request.is_json:
+            return jsonify({"success": True, "redirect": url_for("dashboard_page")}), 200
+        return redirect(url_for("dashboard_page"))
+
+    if session.get("user_email"):
+        return redirect(url_for("dashboard_page"))
+
+    return render_template("signup.html", active_page="signup")
+
+
+@app.post("/logout")
+def logout_page():
+    session.clear()
+    if request.is_json:
+        return jsonify({"success": True, "redirect": url_for("index")}), 200
+    return redirect(url_for("index"))
+
+
+
+@app.get("/dashboard")
+def dashboard_page():
+    if not session.get("user_email"):
+        return redirect(url_for("login_page", next=request.path))
+    return render_template("dashboard.html", active_page="dashboard")
+
+
+@app.get("/terms")
+def terms_page():
+    return render_template("terms.html", active_page="terms")
 
 
 # ============================================================
@@ -283,19 +553,20 @@ def index():
 # ============================================================
 
 @app.get("/api/airports")
+@rate_limit(limit=100, window=60)
 def airport_search():
 
     query = (
         request.args
         .get("q", "")
-        .strip()
+        .strip()[:50]
         .lower()
     )
 
     iata_query = (
         request.args
         .get("iata", "")
-        .strip()
+        .strip()[:3]
         .upper()
     )
 
@@ -398,9 +669,15 @@ def airport_search():
 # ============================================================
 
 @app.post("/api/search")
+@rate_limit(limit=40, window=60)
 def api_search():
 
     data = request.get_json() or {}
+    try:
+        check_bot_honeypot(data)
+    except ValueError as bot_err:
+        return jsonify({"error": str(bot_err)}), 400
+
     raw_trip_type = data.get("trip_type")
     if raw_trip_type:
         trip_type = raw_trip_type
@@ -514,17 +791,14 @@ def api_search():
                 "Departure, arrival and outbound date are required."
         }), 400
 
-    departure = (
-        str(data["departure"])
-        .strip()
-        .upper()
-    )
+    try:
+        departure = validate_iata_code(data["departure"], "Departure airport")
+        arrival = validate_iata_code(data["arrival"], "Arrival airport")
+    except ValueError as iata_err:
+        return jsonify({"error": str(iata_err)}), 400
 
-    arrival = (
-        str(data["arrival"])
-        .strip()
-        .upper()
-    )
+    if departure == arrival:
+        return jsonify({"error": "Departure and arrival airports cannot be identical."}), 400
 
     return_date = data.get(
         "return_date"
@@ -769,13 +1043,9 @@ def api_search():
         })
 
     except Exception as e:
-        print(
-            "Flight search error:",
-            str(e)
-        )
-
+        app.logger.error("Flight search error: %s", e)
         return jsonify({
-            "error": str(e)
+            "error": "An unexpected error occurred while searching for flights. Please try again."
         }), 500
 
 
@@ -784,16 +1054,55 @@ def api_search():
 # ============================================================
 
 @app.post("/api/flight/compare")
+@rate_limit(limit=40, window=60)
 def api_flight_compare():
     data = request.get_json() or {}
-    flight = data.get("flight")
-    if not flight:
-        return jsonify({"error": "Flight details are required."}), 400
+    try:
+        check_bot_honeypot(data)
+    except ValueError as bot_err:
+        return jsonify({"error": str(bot_err)}), 400
 
-    departure = str(data.get("departure") or flight.get("departure_airport") or "").strip().upper()
-    arrival = str(data.get("arrival") or flight.get("arrival_airport") or "").strip().upper()
-    outbound_date = str(data.get("outbound_date") or "").strip()
-    return_date = data.get("return_date")
+    flight = data.get("flight")
+
+    if flight:
+        departure = str(data.get("departure") or flight.get("departure_airport") or "").strip().upper()
+        arrival = str(data.get("arrival") or flight.get("arrival_airport") or "").strip().upper()
+        outbound_date = str(data.get("outbound_date") or data.get("departure_date") or "").strip()
+        return_date = data.get("return_date")
+        reference_itineraries = [flight]
+    else:
+        # Route-based comparison for standalone /compare page
+        raw_dep = data.get("departure")
+        raw_arr = data.get("arrival")
+        raw_outbound = data.get("outbound_date") or data.get("departure_date")
+        if not raw_dep or not raw_arr or not raw_outbound:
+            return jsonify({"error": "Departure, arrival, and outbound date are required."}), 400
+
+        try:
+            departure = validate_iata_code(raw_dep, "Departure airport")
+            arrival = validate_iata_code(raw_arr, "Arrival airport")
+        except ValueError as iata_err:
+            return jsonify({"error": str(iata_err)}), 400
+
+        if departure == arrival:
+            return jsonify({"error": "Departure and arrival airports cannot be identical."}), 400
+
+        outbound_date = str(raw_outbound).strip()
+        return_date = data.get("return_date")
+        try:
+            validate_date_sequence(outbound_date, return_date)
+        except ValueError as d_err:
+            return jsonify({"error": str(d_err)}), 400
+
+        # Query authentic base flights to serve as reference itineraries
+        base_flights = search_flights(
+            departure=departure,
+            arrival=arrival,
+            outbound_date=outbound_date,
+            return_date=return_date
+        )
+        reference_itineraries = base_flights if base_flights else None
+
     try:
         travel_class = int(data.get("travel_class", 1))
     except (TypeError, ValueError):
@@ -807,11 +1116,24 @@ def api_flight_compare():
             outbound_date=outbound_date,
             return_date=return_date,
             travel_class=travel_class,
-            reference_itineraries=[flight]
+            reference_itineraries=reference_itineraries
         )
+
+        all_offers = comparison_data.get("all_offers", [])
+        # Ensure offers contain both 'provider' and 'provider_name' for UI template compatibility
+        for offer in all_offers:
+            if "provider" not in offer:
+                offer["provider"] = offer.get("provider_name", "Carrier")
+
         response_payload = {
-            "flight_summary": flight,
-            "comparison_offers": comparison_data.get("all_offers", []),
+            "flight_summary": flight or {
+                "departure_airport": departure,
+                "arrival_airport": arrival,
+                "outbound_date": outbound_date,
+                "return_date": return_date,
+            },
+            "offers": all_offers,
+            "comparison_offers": all_offers,
             "grouped_itineraries": comparison_data.get("grouped_itineraries", []),
             "providers_summary": comparison_data.get("providers_summary", []),
             "stats": comparison_data.get("stats", {}),
@@ -819,8 +1141,9 @@ def api_flight_compare():
         }
         return jsonify(response_payload)
     except Exception as e:
-        print("Flight comparison endpoint error:", str(e))
-        return jsonify({"error": str(e)}), 500
+        app.logger.error("Flight comparison endpoint error: %s", e)
+        return jsonify({"error": "An error occurred while comparing flights across providers."}), 500
+
 
 
 # ============================================================
@@ -830,11 +1153,18 @@ def api_flight_compare():
 def api_providers():
     """Return status and configuration details for all flight data providers."""
     try:
+        raw_status = get_providers_status()
+        providers_list = []
+        for p in raw_status:
+            item = dict(p) if isinstance(p, dict) else (p.to_dict() if hasattr(p, "to_dict") else vars(p))
+            item["name"] = item.get("provider_name") or item.get("provider_id", "Provider")
+            providers_list.append(item)
         return jsonify({
-            "providers": get_providers_status()
+            "providers": providers_list
         })
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        app.logger.error("Providers metadata endpoint error: %s", e)
+        return jsonify({"error": "Unable to retrieve flight data providers status."}), 500
 
 
 
@@ -842,9 +1172,16 @@ def api_providers():
 # TRACK FLIGHT PRICE
 # ============================================================
 @app.post("/api/track")
+@rate_limit(limit=15, window=60)
 def track():
 
     data = request.get_json() or {}
+
+    # Bot protection
+    try:
+        check_bot_honeypot(data)
+    except ValueError as bot_err:
+        return jsonify({"error": str(bot_err)}), 400
 
     # --------------------------------------------------------
     # REQUIRED FIELDS
@@ -888,11 +1225,22 @@ def track():
         }), 400
 
     # --------------------------------------------------------
-    # CLEAN INPUTS
+    # VALIDATE EMAIL & AIRPORTS
     # --------------------------------------------------------
 
-    departure = clean_iata(data["departure"])
-    arrival = clean_iata(data["arrival"])
+    try:
+        email = validate_email(data.get("email"))
+    except ValueError as err:
+        return jsonify({"error": str(err)}), 400
+
+    try:
+        departure = validate_iata_code(data.get("departure"), "Departure airport")
+        arrival = validate_iata_code(data.get("arrival"), "Arrival airport")
+    except ValueError as err:
+        return jsonify({"error": str(err)}), 400
+
+    if departure == arrival:
+        return jsonify({"error": "Departure and arrival airports cannot be identical."}), 400
 
     outbound_date = (
         str(data["outbound_date"])
@@ -904,15 +1252,16 @@ def track():
         or None
     )
 
-    email = (
-        str(data["email"])
-        .strip()
-    )
+    try:
+        validate_date_sequence(outbound_date, return_date)
+    except ValueError as d_err:
+        return jsonify({"error": str(d_err)}), 400
 
     # --------------------------------------------------------
     # SAVE TRACKING REQUEST
     # --------------------------------------------------------
 
+    created_at = datetime.now(timezone.utc).isoformat()
     conn = db()
 
     try:
@@ -941,7 +1290,7 @@ def track():
                     return_date,
                     target_price,
                     email,
-                    datetime.now(timezone.utc).isoformat()
+                    created_at
                 )
             )
 
@@ -970,7 +1319,7 @@ def track():
                     return_date,
                     target_price,
                     email,
-                    datetime.now(timezone.utc).isoformat()
+                    created_at
                 )
             )
 
@@ -981,35 +1330,64 @@ def track():
     finally:
         conn.close()
 
+    delete_token = generate_delete_token(tracking_id, created_at)
+
     return jsonify({
         "message": "Flight tracking started!",
-        "id": tracking_id
+        "id": tracking_id,
+        "delete_token": delete_token
     })# ============================================================
 # GET TRACKED FLIGHTS
 # ============================================================
 
 @app.get("/api/tracked")
 def get_tracked_flights():
+    user_email = session.get("user_email")
+    if not user_email:
+        # Prevent unauthenticated users from snooping on other users' private tracking data
+        return jsonify([])
 
     conn = db()
 
     try:
-        rows = conn.execute(
-            """
-            SELECT
-                id,
-                departure,
-                arrival,
-                outbound_date,
-                return_date,
-                target_price,
-                lowest_price,
-                last_price,
-                created_at
-            FROM tracked_flights
-            ORDER BY created_at DESC
-            """
-        ).fetchall()
+        if DATABASE_URL:
+            rows = conn.execute(
+                """
+                SELECT
+                    id,
+                    departure,
+                    arrival,
+                    outbound_date,
+                    return_date,
+                    target_price,
+                    lowest_price,
+                    last_price,
+                    created_at
+                FROM tracked_flights
+                WHERE LOWER(email) = LOWER(%s)
+                ORDER BY created_at DESC
+                """,
+                (user_email,)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT
+                    id,
+                    departure,
+                    arrival,
+                    outbound_date,
+                    return_date,
+                    target_price,
+                    lowest_price,
+                    last_price,
+                    created_at
+                FROM tracked_flights
+                WHERE LOWER(email) = LOWER(?)
+                ORDER BY created_at DESC
+                """,
+                (user_email,)
+            ).fetchall()
 
     finally:
         conn.close()
@@ -1050,10 +1428,11 @@ def radar_status():
             "last_checked": last_checked
         })
     except Exception as exc:
+        app.logger.error("Price radar status failed: %s", exc)
         return jsonify({
             "status": "Error",
             "status_detail": "Price radar connection failed",
-            "error": str(exc),
+            "error": "Service temporarily unavailable",
             "tracked_count": 0,
             "last_checked": None
         }), 500
@@ -1066,11 +1445,39 @@ def radar_status():
 # PRICE HISTORY
 # ============================================================
 @app.get("/api/history/<int:tracked_id>")
+@rate_limit(limit=60, window=60)
 def history(tracked_id):
 
     conn = db()
 
     try:
+        # Verify flight exists and fetch ownership metadata
+        if DATABASE_URL:
+            flight = conn.execute(
+                "SELECT id, email, created_at FROM tracked_flights WHERE id = %s",
+                (tracked_id,)
+            ).fetchone()
+        else:
+            flight = conn.execute(
+                "SELECT id, email, created_at FROM tracked_flights WHERE id = ?",
+                (tracked_id,)
+            ).fetchone()
+
+        if not flight:
+            return jsonify({"error": "Tracked flight not found."}), 404
+
+        # Enforce tenancy / authorization:
+        # 1. Authenticated user matching the normalized email
+        user_email = session.get("user_email")
+        is_owner = bool(user_email and flight["email"].strip().lower() == user_email.strip().lower())
+
+        # 2. Or unauthenticated/token-authorized access via record-specific HMAC token in request header
+        raw_token = request.headers.get("X-Delete-Token") or request.headers.get("X-Auth-Token")
+        token = raw_token.strip() if raw_token and isinstance(raw_token, str) else ""
+        is_token_valid = bool(token and verify_delete_token(tracked_id, flight["created_at"], token))
+
+        if not is_owner and not is_token_valid:
+            return jsonify({"error": "Unauthorized access to this flight history."}), 403
 
         if DATABASE_URL:
             # PostgreSQL
@@ -1109,15 +1516,47 @@ def history(tracked_id):
     ])
 
 
+
 # ============================================================
-# DELETE TRACKED FLIGHT
+# DELETE TRACKED FLIGHT (IDOR & AUTHORIZATION HARDENING)
 # ============================================================
 @app.delete("/api/tracked/<int:tracked_id>")
+@rate_limit(limit=30, window=60)
 def delete_tracked_flight(tracked_id):
 
     conn = db()
 
     try:
+        if DATABASE_URL:
+            row = conn.execute(
+                "SELECT id, created_at FROM tracked_flights WHERE id = %s",
+                (tracked_id,)
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT id, created_at FROM tracked_flights WHERE id = ?",
+                (tracked_id,)
+            ).fetchone()
+
+        if not row:
+            return jsonify({
+                "error": "Tracked flight not found."
+            }), 404
+
+        # Validate authorization token - MUST be provided via X-Delete-Token header only
+        raw_token = request.headers.get("X-Delete-Token")
+        token = raw_token.strip() if raw_token and isinstance(raw_token, str) else ""
+
+        if not token:
+            return jsonify({
+                "error": "Authorization token required to delete this flight."
+            }), 403
+
+        if not verify_delete_token(tracked_id, row["created_at"], token):
+            return jsonify({
+                "error": "Invalid authorization token for this flight."
+            }), 403
+
         if DATABASE_URL:
             conn.execute(
                 "DELETE FROM price_history WHERE tracked_id = %s",
@@ -1142,21 +1581,9 @@ def delete_tracked_flight(tracked_id):
         conn.close()
 
     return jsonify({
-        "message": "Tracked flight removed."
+        "message": "Tracked flight removed.",
+        "id": tracked_id
     })
-
-
-# ============================================================
-# SECURITY HEADERS
-# ============================================================
-@app.after_request
-def add_security_headers(response):
-    """Enforce production security headers on all responses."""
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "SAMEORIGIN"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=()"
-    return response
 
 
 # ============================================================
@@ -1178,19 +1605,24 @@ def robots_txt():
 @app.get("/sitemap.xml")
 def sitemap_xml():
     """Serve search engine XML sitemap for legitimate indexed routes."""
+    routes = [
+        ("/", "daily", "1.0"),
+        ("/flights", "daily", "0.9"),
+        ("/compare", "daily", "0.8"),
+        ("/tracking", "daily", "0.8"),
+        ("/about", "monthly", "0.7"),
+        ("/contact", "monthly", "0.6"),
+        ("/privacy", "monthly", "0.5"),
+        ("/terms", "monthly", "0.5"),
+    ]
+    urls_xml = "".join([
+        f"  <url>\n    <loc>https://skytrack-flights.onrender.com{path}</loc>\n    <changefreq>{freq}</changefreq>\n    <priority>{prio}</priority>\n  </url>\n"
+        for path, freq, prio in routes
+    ])
     xml_content = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-        '  <url>\n'
-        '    <loc>https://skytrack-flights.onrender.com/</loc>\n'
-        '    <changefreq>daily</changefreq>\n'
-        '    <priority>1.0</priority>\n'
-        '  </url>\n'
-        '  <url>\n'
-        '    <loc>https://skytrack-flights.onrender.com/privacy</loc>\n'
-        '    <changefreq>monthly</changefreq>\n'
-        '    <priority>0.5</priority>\n'
-        '  </url>\n'
+        f'{urls_xml}'
         '</urlset>'
     )
     return Response(xml_content, mimetype="application/xml")
@@ -1202,7 +1634,20 @@ def sitemap_xml():
 @app.get("/privacy")
 def privacy():
     """Serve truthful platform privacy policy."""
-    return render_template("privacy.html")
+    return render_template("privacy.html", active_page="privacy")
+
+
+# ============================================================
+# FAVICON ROUTE
+# ============================================================
+@app.get("/favicon.ico")
+def favicon():
+    """Serve brand favicon."""
+    return send_from_directory(
+        os.path.join(app.root_path, "static"),
+        "favicon.ico",
+        mimetype="image/vnd.microsoft.icon"
+    )
 
 
 # ============================================================

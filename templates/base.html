@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SkyTracker — The World, Without The Noise | Haute Flight Intelligence{% endblock %}</title>
+    <meta name="description" content="{% block meta_description %}An immersive, surreal digital flight experience. Precision multi-provider fare intelligence, quiet luxury route curation, and real-time radar price tracking.{% endblock %}">
+    <meta name="robots" content="{% block meta_robots %}index, follow{% endblock %}">
+    <link rel="canonical" href="{% block canonical_url %}https://skytrack-flights.onrender.com/{% endblock %}">
+
+    <!-- Favicon & Brand Icons -->
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="alternate icon" href="/static/favicon.ico">
+    <link rel="apple-touch-icon" href="/static/favicon.svg">
+
+    <!-- Open Graph Metadata -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="{% block og_title %}SkyTracker — The World, Without The Noise{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}Surreal quiet luxury flight intelligence. Experience spatial 3D motion design, ethereal travel curation, and transparent provider fare tracking.{% endblock %}">
+    <meta property="og:image" content="https://skytrack-flights.onrender.com/static/og-image.svg">
+    <meta property="og:site_name" content="SkyTracker">
+    <meta property="og:locale" content="en_US">
+
+    <!-- Twitter Card Metadata -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{% block twitter_title %}SkyTracker — Haute Flight Intelligence{% endblock %}">
+    <meta name="twitter:description" content="{% block twitter_description %}Surreal quiet luxury flight intelligence and 3D spatial flight tracking.{% endblock %}">
+    <meta name="twitter:image" content="https://skytrack-flights.onrender.com/static/og-image.svg">
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "SkyTracker",
+        "url": "https://skytrack-flights.onrender.com/",
+        "applicationCategory": "TravelApplication",
+        "operatingSystem": "All",
+        "description": "Surreal luxury flight intelligence, multi-provider fare arbitrage, and real-time radar alerts.",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "INR"
+        }
+    }
+    </script>
+
+    <!-- Typography: Cormorant Garamond + Cinzel + Plus Jakarta Sans + Space Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+
+    <!-- Master Stylesheet -->
+    <link rel="stylesheet" href="/static/style.css">
+
+    <!-- External 3D & Chart Engines -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    {% block extra_head %}{% endblock %}
+</head>
+
+<body class="luxury-experience">
+
+    <!-- Fluid Ethereal Magnetic Cursor -->
+    <div id="luxuryCursor" class="luxury-cursor"></div>
+    <div id="luxuryCursorFollower" class="luxury-cursor-follower"></div>
+
+    <!-- Ethereal Spatial Ambient Canvas & Atmosphere -->
+    <div class="spatial-bg-atmosphere" aria-hidden="true">
+        <canvas id="heroScene3D" class="hero-scene-3d"></canvas>
+        <div class="cosmic-vignette"></div>
+        <div class="aurora-glow glow-1"></div>
+        <div class="aurora-glow glow-2"></div>
+        <div class="fine-grid-overlay"></div>
+    </div>
+
+    <!-- Master Web Experience Wrapper -->
+    <div class="app-surreal">
+
+        <!-- =====================================================
+             GLOBAL NAVIGATION — QUIET LUXURY ARCHITECTURE
+        ====================================================== -->
+        <header class="navbar-wrapper">
+            <nav class="navbar" id="navbar">
+                <!-- Redesigned SkyTracker Brand Logo -->
+                <a href="/" class="brand-monogram" aria-label="SkyTracker Home">
+                    <span class="brand-glyph" aria-hidden="true">
+                        <svg width="26" height="26" viewBox="0 0 48 48" fill="none" stroke="currentColor">
+                            <ellipse cx="24" cy="24" rx="19" ry="8.5" transform="rotate(-28 24 24)" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                            <path d="M 33 13 C 26 8, 16 11, 16 19 C 16 26, 32 22, 32 29 C 32 37, 22 40, 15 35" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                            <circle cx="34" cy="15" r="2.2" fill="currentColor"/>
+                        </svg>
+                    </span>
+                    <span class="brand-text">
+                        <span class="brand-name">SKYTRACKER</span>
+                        <span class="brand-sub">FLIGHT INTELLIGENCE</span>
+                    </span>
+                </a>
+
+                <!-- Nav Links: Genuine Multipage Routing -->
+                <div class="nav-links">
+                    <a href="/" class="nav-link {% if active_page == 'home' %}active{% endif %}">
+                        <span class="nav-index">01</span>
+                        <span>Home</span>
+                    </a>
+                    <a href="/flights" class="nav-link {% if active_page == 'flights' %}active{% endif %}">
+                        <span class="nav-index">02</span>
+                        <span>Flights</span>
+                    </a>
+                    <a href="/compare" class="nav-link {% if active_page == 'compare' %}active{% endif %}">
+                        <span class="nav-index">03</span>
+                        <span>Compare</span>
+                    </a>
+                    <a href="/tracking" class="nav-link {% if active_page == 'tracking' %}active{% endif %}">
+                        <span class="nav-index">04</span>
+                        <span>Tracking</span>
+                    </a>
+                    <a href="/about" class="nav-link {% if active_page == 'about' %}active{% endif %}">
+                        <span class="nav-index">05</span>
+                        <span>About</span>
+                    </a>
+                    <a href="/contact" class="nav-link {% if active_page == 'contact' %}active{% endif %}">
+                        <span class="nav-index">06</span>
+                        <span>Contact</span>
+                    </a>
+                </div>
+
+                <!-- Nav Actions: Soundscape, Theme, Auth, & Mobile Toggle -->
+                <div class="nav-actions">
+                    <!-- Web Audio Procedural Atmospheric Drone Toggle -->
+                    <button type="button" id="audioAtmosphereToggle" class="nav-audio-btn"
+                        aria-label="Toggle ethereal ambient soundscape" title="Atmospheric soundscape">
+                        <span class="audio-wave-icon" aria-hidden="true">
+                            <span class="wave-bar bar-1"></span>
+                            <span class="wave-bar bar-2"></span>
+                            <span class="wave-bar bar-3"></span>
+                        </span>
+                        <span class="audio-label">ATMOSPHERE:</span>
+                        <span class="audio-state-tag" id="audioStateTag">MUTE</span>
+                    </button>
+
+                    <!-- Theme Toggle (Obsidian Noir / Warm Alabaster) -->
+                    <button type="button" id="themeToggle" class="theme-toggle-btn"
+                        aria-label="Toggle Obsidian / Alabaster Theme" title="Toggle theme">
+                        <span class="theme-icon sun-icon" aria-hidden="true">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="5"></circle>
+                                <line x1="12" y1="1" x2="12" y2="3"></line>
+                                <line x1="12" y1="21" x2="12" y2="23"></line>
+                                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                                <line x1="1" y1="12" x2="3" y2="12"></line>
+                                <line x1="21" y1="12" x2="23" y2="12"></line>
+                                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                            </svg>
+                        </span>
+                        <span class="theme-icon moon-icon" aria-hidden="true">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                            </svg>
+                        </span>
+                    </button>
+
+                    <!-- Authentication / Member Dashboard CTA -->
+                    {% if logged_in_user %}
+                    <a href="/dashboard" class="nav-cta-minimal {% if active_page == 'dashboard' %}active{% endif %}">
+                        <span>Dashboard</span>
+                    </a>
+                    <form method="POST" action="/logout" style="display: inline; margin: 0; padding: 0;">
+                        <button type="submit" class="nav-logout-action" title="Sign Out" aria-label="Sign Out" style="background: none; border: none; cursor: pointer; padding: 0;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                                <polyline points="16 17 21 12 16 7"></polyline>
+                                <line x1="21" y1="12" x2="9" y2="12"></line>
+                            </svg>
+                        </button>
+                    </form>
+                    {% else %}
+                    <a href="/login" class="nav-cta-minimal {% if active_page == 'login' %}active{% endif %}">
+                        <span>Sign In</span>
+                    </a>
+                    {% endif %}
+
+                    <!-- Mobile Menu Hamburger -->
+                    <button type="button" id="mobileMenuToggle" class="mobile-menu-toggle"
+                        aria-label="Toggle navigation menu" aria-expanded="false">
+                        <span class="burger-line"></span>
+                        <span class="burger-line"></span>
+                    </button>
+                </div>
+            </nav>
+
+            <!-- Accessible Mobile Drawer Menu -->
+            <div id="mobileMenuDrawer" class="mobile-menu-drawer" role="dialog" aria-modal="true" aria-label="Navigation Menu" aria-hidden="true">
+                <div class="mobile-drawer-top">
+                    <span class="drawer-meta-title">NAVIGATION INDEX</span>
+                    <button type="button" id="mobileMenuCloseBtn" class="mobile-drawer-close-btn" aria-label="Close navigation menu">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+                <div class="mobile-drawer-content">
+                    <a href="/" class="mobile-nav-link {% if active_page == 'home' %}active{% endif %}">01 // Home Overview</a>
+                    <a href="/flights" class="mobile-nav-link {% if active_page == 'flights' %}active{% endif %}">02 // Explore Flights</a>
+                    <a href="/compare" class="mobile-nav-link {% if active_page == 'compare' %}active{% endif %}">03 // Fare Comparison Matrix</a>
+                    <a href="/tracking" class="mobile-nav-link {% if active_page == 'tracking' %}active{% endif %}">04 // Radar Price Tracking</a>
+                    <a href="/about" class="mobile-nav-link {% if active_page == 'about' %}active{% endif %}">05 // Haute Philosophy</a>
+                    <a href="/contact" class="mobile-nav-link {% if active_page == 'contact' %}active{% endif %}">06 // Concierge Desk</a>
+                    {% if logged_in_user %}
+                    <a href="/dashboard" class="mobile-nav-link {% if active_page == 'dashboard' %}active{% endif %}">07 // Member Dashboard</a>
+                    <form method="POST" action="/logout" style="display: block; margin: 0; padding: 0;">
+                        <button type="submit" class="mobile-nav-link" style="background: none; border: none; width: 100%; text-align: left; cursor: pointer; font: inherit; padding: 14px 0;">08 // Sign Out</button>
+                    </form>
+                    {% else %}
+                    <a href="/login" class="mobile-nav-link {% if active_page == 'login' %}active{% endif %}">07 // Member Sign In</a>
+                    <a href="/signup" class="mobile-nav-link {% if active_page == 'signup' %}active{% endif %}">08 // Register Sovereign Account</a>
+                    {% endif %}
+                    <a href="/privacy" class="mobile-nav-link {% if active_page == 'privacy' %}active{% endif %}">09 // Privacy Manifesto</a>
+                    <a href="/terms" class="mobile-nav-link {% if active_page == 'terms' %}active{% endif %}">10 // Terms of Service</a>
+                    <div class="mobile-drawer-footer">
+                        <span class="drawer-status-dot"></span>
+                        <span class="drawer-status-text">RADAR SURVEILLANCE ACTIVE</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- =====================================================
+             PAGE CONTENT BLOCK
+        ====================================================== -->
+        <main id="mainContent" class="main-content-flow">
+            {% block content %}{% endblock %}
+        </main>
+
+        <!-- =====================================================
+             GLOBAL LUXURY FOOTER
+        ====================================================== -->
+        <footer class="luxury-footer">
+            <div class="footer-grid">
+                <!-- Col 1: Brand & Philosophy -->
+                <div class="footer-brand-col">
+                    <div class="brand-monogram">
+                        <span class="brand-glyph" aria-hidden="true">
+                            <svg width="22" height="22" viewBox="0 0 48 48" fill="none" stroke="currentColor">
+                                <ellipse cx="24" cy="24" rx="19" ry="8.5" transform="rotate(-28 24 24)" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                                <path d="M 33 13 C 26 8, 16 11, 16 19 C 16 26, 32 22, 32 29 C 32 37, 22 40, 15 35" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                                <circle cx="34" cy="15" r="2.2" fill="currentColor"/>
+                            </svg>
+                        </span>
+                        <span class="brand-text">
+                            <span class="brand-name">SKYTRACKER</span>
+                            <span class="brand-sub">FLIGHT INTELLIGENCE</span>
+                        </span>
+                    </div>
+
+                    <p class="footer-philosophy font-sans" style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.6; margin-top: 14px; max-width: 320px;">
+                        Minimalist flight intelligence engineered for quiet luxury travel, multi-provider fare comparisons, and route telemetry.
+                    </p>
+
+                    <p class="footer-accreditation font-mono" style="font-size: 0.68rem; color: var(--text-tertiary); margin-top: 12px; letter-spacing: 0.08em;">
+                        SKYTRACKER FLIGHT INTELLIGENCE · DESIGNED FOR EFFORTLESS NAVIGATION.
+                    </p>
+                </div>
+
+                <!-- Col 2: Worldwide Real-Time Clocks -->
+                <div class="footer-clocks-col">
+                    <span class="footer-col-title font-mono">WORLDWIDE CHRONOMETERS</span>
+                    <div class="clock-rows font-mono">
+                        <div class="clock-row">
+                            <span class="city-name">TOKYO (JST)</span>
+                            <span class="city-time" id="clockTokyo">--:--:--</span>
+                        </div>
+                        <div class="clock-row">
+                            <span class="city-name">LONDON (GMT)</span>
+                            <span class="city-time" id="clockLondon">--:--:--</span>
+                        </div>
+                        <div class="clock-row">
+                            <span class="city-name">NEW YORK (EST)</span>
+                            <span class="city-time" id="clockNewYork">--:--:--</span>
+                        </div>
+                        <div class="clock-row">
+                            <span class="city-name">PARIS (CET)</span>
+                            <span class="city-time" id="clockParis">--:--:--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Col 3: Navigation Index -->
+                <div class="footer-links-col">
+                    <span class="footer-col-title font-mono">INDEX</span>
+                    <ul class="footer-links-list">
+                        <li><a href="/" class="footer-link">Home</a></li>
+                        <li><a href="/flights" class="footer-link">Explore Flights</a></li>
+                        <li><a href="/compare" class="footer-link">Fare Comparison</a></li>
+                        <li><a href="/tracking" class="footer-link">Price Tracking</a></li>
+                        <li><a href="/about" class="footer-link">About SkyTracker</a></li>
+                        <li><a href="/contact" class="footer-link">Concierge Desk</a></li>
+                        <li><a href="/privacy" class="footer-link">Privacy Manifesto</a></li>
+                        <li><a href="/terms" class="footer-link">Terms of Service</a></li>
+                    </ul>
+                </div>
+
+                <!-- Col 4: Verified Concierge Contact -->
+                <div class="footer-links-col">
+                    <span class="footer-col-title font-mono">CONCIERGE & TELEMETRY</span>
+                    <div class="footer-contact-details font-mono">
+                        <p class="footer-contact-item">
+                            <span class="contact-label">ENQUIRIES:</span>
+                            <a href="mailto:concierge@skytrack.luxury" class="contact-value">concierge@skytrack.luxury</a>
+                        </p>
+                        <p class="footer-contact-item">
+                            <span class="contact-label">DIRECT DESK:</span>
+                            <a href="tel:+447700900077" class="contact-value">+44 7700 900077</a>
+                        </p>
+                        <p class="footer-contact-item">
+                            <span class="contact-label">TELEMETRY:</span>
+                            <span class="contact-value">GDS & Multi-OTA Feeds</span>
+                        </p>
+                        <p class="footer-contact-item">
+                            <span class="contact-label">SERVICE DESK:</span>
+                            <span class="contact-value text-success">Online Inquiries Monitored</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer-bottom-bar font-mono">
+                <span class="copyright">&copy; {{ current_year }} SKYTRACKER ARCHIVE. LIVE MULTI-PROVIDER ARBITRAGE.</span>
+                <span class="colophon">NO COOKIES TRACKED · PRIVACY INVIOLABLE</span>
+                <a href="#navbar" class="back-to-top-btn" aria-label="Back to top">
+                    <span>TOP</span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="18 15 12 9 6 15"></polyline>
+                    </svg>
+                </a>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- JAVASCRIPT MODULES -->
+    <script src="/static/scene3d.js"></script>
+    <script src="/static/atmosphere.js"></script>
+    <script src="/static/app.js"></script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+
+</html>

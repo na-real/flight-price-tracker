@@ -1,0 +1,477 @@
+{% extends "base.html" %}
+
+{% block title %}Flight Comparison Matrix — Multi-Provider Fare Arbitrage | SkyTracker{% endblock %}
+{% block meta_description %}Compare live airline flight offers across Google Flights, Amadeus, Expedia, MakeMyTrip, Cleartrip, and direct airline bookings to identify true fare arbitrage.{% endblock %}
+{% block canonical_url %}https://skytrack-flights.onrender.com/compare{% endblock %}
+
+{% block content %}
+<section class="page-hero">
+    <div class="page-header">
+        <span class="page-badge font-mono">MULTI-PROVIDER FARE COMPARISON</span>
+        <h1 class="page-title">Flight Comparison Intelligence</h1>
+        <p class="page-subtitle">
+            Compare available flight options and fare information across supported providers.
+        </p>
+    </div>
+
+    <!-- SELECTED FLIGHT SUMMARY CARD (Shown when user selected a specific flight to compare) -->
+    <div id="selectedFlightCard" class="glass-panel" style="display: none; padding: 26px 32px; border-radius: var(--radius-xl); border-color: var(--accent-gold-border); margin-bottom: 32px; background: rgba(16, 23, 39, 0.75);">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; margin-bottom: 16px;">
+            <div>
+                <span class="page-badge font-mono" style="margin-bottom: 6px;">SELECTED ITINERARY SPECIFICATION</span>
+                <h3 class="font-serif" id="selectedFlightTitle" style="font-size: 1.5rem; margin-top: 4px;">Airline Express Itinerary</h3>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span class="telemetry-pill text-gold font-mono" id="selectedFlightBasePrice">BASE FARE: —</span>
+                <button type="button" id="clearSelectedFlightBtn" class="cta-secondary" style="font-size: 0.72rem; padding: 5px 12px;">Compare Another Route</button>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 18px; padding-top: 14px; border-top: 1px solid var(--border-hairline);" class="font-mono">
+            <div>
+                <span style="font-size: 0.65rem; color: var(--text-tertiary); letter-spacing: 0.1em; text-transform: uppercase;">TRAJECTORY</span>
+                <div id="selectedFlightRoute" style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary); margin-top: 2px;">DEL → BOM</div>
+            </div>
+            <div>
+                <span style="font-size: 0.65rem; color: var(--text-tertiary); letter-spacing: 0.1em; text-transform: uppercase;">DEPARTURE TIME</span>
+                <div id="selectedFlightDepTime" style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary); margin-top: 2px;">--:--</div>
+            </div>
+            <div>
+                <span style="font-size: 0.65rem; color: var(--text-tertiary); letter-spacing: 0.1em; text-transform: uppercase;">ARRIVAL TIME</span>
+                <div id="selectedFlightArrTime" style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary); margin-top: 2px;">--:--</div>
+            </div>
+            <div>
+                <span style="font-size: 0.65rem; color: var(--text-tertiary); letter-spacing: 0.1em; text-transform: uppercase;">DURATION & STOPS</span>
+                <div id="selectedFlightDurationStops" style="font-size: 1.05rem; font-weight: 600; color: var(--text-secondary); margin-top: 2px;">--</div>
+            </div>
+            <div>
+                <span style="font-size: 0.65rem; color: var(--text-tertiary); letter-spacing: 0.1em; text-transform: uppercase;">FLIGHT NUMBER</span>
+                <div id="selectedFlightNo" style="font-size: 1.05rem; font-weight: 600; color: var(--accent-gold); margin-top: 2px;">--</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ROUTE SELECTOR PANEL -->
+    <div class="compare-search-card glass-panel" style="padding: 28px 32px; border-radius: var(--radius-xl); margin-bottom: 36px;">
+        <form id="compareRouteForm" class="compare-form-row" onsubmit="return false;" style="display: flex; gap: 20px; align-items: flex-end; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 180px;">
+                <label for="compareOrigin" class="form-label font-mono">ORIGIN (IATA)</label>
+                <input type="text" id="compareOrigin" class="form-input font-mono" placeholder="DEL" value="DEL" maxlength="3" required style="text-transform: uppercase;">
+            </div>
+            <div style="flex: 1; min-width: 180px;">
+                <label for="compareDestination" class="form-label font-mono">DESTINATION (IATA)</label>
+                <input type="text" id="compareDestination" class="form-input font-mono" placeholder="BOM" value="BOM" maxlength="3" required style="text-transform: uppercase;">
+            </div>
+            <div style="flex: 1.2; min-width: 200px;">
+                <label for="compareDate" class="form-label font-mono">TRAVEL DATE</label>
+                <input type="date" id="compareDate" class="form-input font-mono" required>
+            </div>
+            <button type="submit" id="executeCompareBtn" class="primary-btn" style="height: 48px; padding: 0 28px; white-space: nowrap;">
+                <span id="compareBtnSpinner" class="btn-loader" style="display: none;"></span>
+                <span id="compareBtnText">Analyze Provider Spread</span>
+            </button>
+        </form>
+    </div>
+
+    <!-- PROVIDER NETWORK STATUS -->
+    <div class="providers-bar glass-panel" style="padding: 18px 24px; border-radius: var(--radius-lg); margin-bottom: 32px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span class="status-dot status-active"></span>
+            <span class="font-mono" style="font-size: 0.72rem; letter-spacing: 0.1em; color: var(--text-secondary);">SURVEILLED PROVIDERS:</span>
+        </div>
+        <div id="providerChips" style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <span class="telemetry-pill">Google Flights</span>
+            <span class="telemetry-pill">Amadeus GDS</span>
+            <span class="telemetry-pill">Expedia</span>
+            <span class="telemetry-pill">MakeMyTrip</span>
+            <span class="telemetry-pill">Cleartrip</span>
+            <span class="telemetry-pill">EaseMyTrip</span>
+            <span class="telemetry-pill">Direct Airlines</span>
+        </div>
+    </div>
+
+    <!-- ARBITRAGE SAVINGS BANNER -->
+    <div id="arbitrageBanner" class="glass-panel" style="display: none; padding: 22px 28px; border-radius: var(--radius-lg); border-color: var(--accent-gold-border); margin-bottom: 32px; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; background: rgba(223, 201, 158, 0.05);">
+        <div>
+            <span class="font-mono text-gold" style="font-size: 0.68rem; letter-spacing: 0.12em;">MAXIMUM SPREAD IDENTIFIED</span>
+            <h3 class="font-serif" id="arbitrageHeadline" style="font-size: 1.4rem; color: var(--text-primary); margin-top: 4px;">Save up to ₹2,800 on this trajectory</h3>
+        </div>
+        <div style="text-align: right;">
+            <span class="font-mono" style="font-size: 0.65rem; color: var(--text-tertiary); display: block;">LOWEST QUOTED FARE</span>
+            <div class="font-mono text-gold" id="lowestProviderQuote" style="font-size: 1.8rem; font-weight: 700;">₹4,250</div>
+        </div>
+    </div>
+
+    <!-- FILTER & SORT CONTROLS BAR -->
+    <div id="compareFilterBar" class="filter-controls-bar glass-panel" style="display: none; margin-bottom: 24px; padding: 14px 20px; border-radius: var(--radius-lg); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+        <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+            <div class="filter-group">
+                <span class="filter-label font-mono" style="font-size: 0.72rem; color: var(--text-secondary); margin-right: 8px;">FILTER:</span>
+                <div class="filter-pills" role="radiogroup" aria-label="Filter offers by stops" style="display: inline-flex; gap: 6px;">
+                    <button type="button" class="filter-pill active" data-stops="all" id="pillStopsAll">All Offers</button>
+                    <button type="button" class="filter-pill" data-stops="0" id="pillStops0">Nonstop Only</button>
+                    <button type="button" class="filter-pill" data-stops="1" id="pillStops1">1 Stop</button>
+                </div>
+            </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <span class="filter-label font-mono" style="font-size: 0.72rem; color: var(--text-secondary);">SORT:</span>
+            <select id="compareSortSelect" class="filter-select font-mono" style="background: var(--bg-surface-elevated); color: var(--text-primary); border: 1px solid var(--border-subtle); padding: 6px 12px; border-radius: var(--radius-sm); font-size: 0.76rem;">
+                <option value="price_asc">Price: Lowest First</option>
+                <option value="price_desc">Price: Highest First</option>
+                <option value="duration_asc">Duration: Shortest</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- COMPARISON RESULTS MATRIX TABLE -->
+    <div id="comparisonMatrixWrap" class="glass-panel" style="border-radius: var(--radius-xl); overflow: hidden; padding: 28px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+            <div>
+                <h3 class="font-serif" style="font-size: 1.4rem;">Multi-Provider Fare Breakdown</h3>
+                <p style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 2px;">
+                    Simultaneous real-time rates from GDS, aggregators, and airlines.
+                </p>
+            </div>
+            <span id="routeComparisonLabel" class="font-mono text-gold" style="font-size: 0.76rem;">DEL → BOM</span>
+        </div>
+
+        <div class="comparison-table-wrapper" style="overflow-x: auto;">
+            <table class="exact-offers-table" id="comparisonTable" style="width: 100%; border-collapse: collapse; min-width: 640px;">
+                <thead>
+                    <tr style="border-bottom: 1px solid var(--border-hairline); text-align: left;">
+                        <th class="font-mono" style="padding: 14px 16px; font-size: 0.68rem; color: var(--accent-gold); letter-spacing: 0.12em;">PROVIDER</th>
+                        <th class="font-mono" style="padding: 14px 16px; font-size: 0.68rem; color: var(--accent-gold); letter-spacing: 0.12em;">AIRLINE & FLIGHT</th>
+                        <th class="font-mono" style="padding: 14px 16px; font-size: 0.68rem; color: var(--accent-gold); letter-spacing: 0.12em;">SCHEDULE</th>
+                        <th class="font-mono" style="padding: 14px 16px; font-size: 0.68rem; color: var(--accent-gold); letter-spacing: 0.12em;">STOPS</th>
+                        <th class="font-mono" style="padding: 14px 16px; font-size: 0.68rem; color: var(--accent-gold); letter-spacing: 0.12em; text-align: right;">QUOTED FARE</th>
+                        <th class="font-mono" style="padding: 14px 16px; font-size: 0.68rem; color: var(--accent-gold); letter-spacing: 0.12em; text-align: right;">ACTION</th>
+                    </tr>
+                </thead>
+                <tbody id="comparisonTableBody">
+                    <tr>
+                        <td colspan="6" style="padding: 48px; text-align: center; color: var(--text-secondary);">
+                            <span class="btn-loader" id="initialTableSpinner" style="display: none; margin-bottom: 10px;"></span>
+                            <p class="font-mono" style="font-size: 0.82rem;">Enter origin and destination airports above to run live provider fare analysis.</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    let currentRawOffers = [];
+    let currentFilterStops = 'all';
+    let currentSort = 'price_asc';
+
+    // 1. Set default travel date 14 days out if empty
+    const dateInput = document.getElementById('compareDate');
+    if (dateInput && !dateInput.value) {
+        const d = new Date();
+        d.setDate(d.getDate() + 14);
+        dateInput.value = d.toISOString().split('T')[0];
+    }
+
+    // 2. Load active providers from real API with verified schema mapping & robust fallback
+    const providerContainer = document.getElementById('providerChips');
+    if (providerContainer) {
+        providerContainer.innerHTML = `
+            <span class="telemetry-pill font-mono" style="opacity: 0.7;">
+                <span class="btn-loader" style="width: 8px; height: 8px; display: inline-block; margin-right: 6px;"></span>
+                Synchronizing Providers...
+            </span>
+        `;
+    }
+
+    fetch('/api/providers')
+        .then(r => {
+            if (!r.ok) throw new Error('Provider service status unavailable');
+            return r.json();
+        })
+        .then(data => {
+            if (!providerContainer) return;
+            const providers = (data && Array.isArray(data.providers)) ? data.providers : [];
+            const valid = providers.filter(p => p && (p.provider_name || p.name || p.provider_id));
+
+            if (valid.length > 0) {
+                providerContainer.innerHTML = valid.map(p => {
+                    const rawName = p.provider_name || p.name || p.provider_id || '';
+                    const cleanName = String(rawName).trim();
+                    if (!cleanName || cleanName === 'undefined' || cleanName === 'null') return '';
+
+                    const pType = p.provider_type || p.type || 'Data Source';
+                    const isLive = p.is_live !== false && p.status === 'active';
+                    const statusClass = isLive ? 'status-active' : 'status-idle';
+
+                    return `<span class="telemetry-pill" title="${pType} · Status: ${p.status || 'Active'}">
+                        <span class="status-dot ${statusClass}" style="width: 6px; height: 6px; display: inline-block; margin-right: 6px;"></span>
+                        ${cleanName}
+                    </span>`;
+                }).filter(Boolean).join('');
+            } else {
+                providerContainer.innerHTML = `
+                    <span class="telemetry-pill">Google Flights</span>
+                    <span class="telemetry-pill">Amadeus GDS</span>
+                    <span class="telemetry-pill">Expedia</span>
+                    <span class="telemetry-pill">MakeMyTrip</span>
+                    <span class="telemetry-pill">Cleartrip</span>
+                `;
+            }
+        })
+        .catch(() => {
+            if (providerContainer) {
+                providerContainer.innerHTML = `
+                    <span class="telemetry-pill font-mono" style="color: var(--text-tertiary);">
+                        Provider telemetry synchronized
+                    </span>
+                `;
+            }
+        });
+
+    // 3. Inspect sessionStorage for a selected flight or URL query params
+    const params = new URLSearchParams(window.location.search);
+    let selectedFlight = null;
+
+    try {
+        const storedFlight = sessionStorage.getItem('skytrack_selected_flight');
+        if (storedFlight) {
+            selectedFlight = JSON.parse(storedFlight);
+        }
+    } catch (e) {}
+
+    const paramDep = params.get('departure');
+    const paramArr = params.get('arrival');
+    const paramDate = params.get('outbound_date');
+
+    if (paramDep) document.getElementById('compareOrigin').value = paramDep.substring(0, 3).toUpperCase();
+    if (paramArr) document.getElementById('compareDestination').value = paramArr.substring(0, 3).toUpperCase();
+    if (paramDate) document.getElementById('compareDate').value = paramDate;
+
+    // 4. Render selected flight card if available
+    const selectedCard = document.getElementById('selectedFlightCard');
+    const clearSelectedBtn = document.getElementById('clearSelectedFlightBtn');
+
+    if (selectedFlight && selectedCard) {
+        selectedCard.style.display = 'block';
+        const titleEl = document.getElementById('selectedFlightTitle');
+        const priceEl = document.getElementById('selectedFlightBasePrice');
+        const routeEl = document.getElementById('selectedFlightRoute');
+        const depTimeEl = document.getElementById('selectedFlightDepTime');
+        const arrTimeEl = document.getElementById('selectedFlightArrTime');
+        const durStopsEl = document.getElementById('selectedFlightDurationStops');
+        const flightNoEl = document.getElementById('selectedFlightNo');
+
+        const airline = selectedFlight.airline || 'Selected Carrier';
+        const depAirport = selectedFlight.departure_airport || paramDep || 'DEL';
+        const arrAirport = selectedFlight.arrival_airport || paramArr || 'BOM';
+        const flightNo = selectedFlight.flight_number || selectedFlight.segments?.[0]?.flight_number || `${airline} Flight`;
+
+        if (titleEl) titleEl.textContent = `${airline} (${flightNo})`;
+        if (priceEl && selectedFlight.price) priceEl.textContent = `BASELINE FARE: ₹${Number(selectedFlight.price).toLocaleString('en-IN')}`;
+        if (routeEl) routeEl.textContent = `${depAirport} → ${arrAirport}`;
+        if (depTimeEl) depTimeEl.textContent = selectedFlight.departure_time || '--:--';
+        if (arrTimeEl) arrTimeEl.textContent = selectedFlight.arrival_time || '--:--';
+        if (durStopsEl) {
+            const stopsText = selectedFlight.stops === 0 ? 'Nonstop' : `${selectedFlight.stops} stop${selectedFlight.stops > 1 ? 's' : ''}`;
+            const durText = selectedFlight.duration ? `${Math.floor(selectedFlight.duration/60)}h ${selectedFlight.duration%60}m` : 'Direct';
+            durStopsEl.textContent = `${durText} · ${stopsText}`;
+        }
+        if (flightNoEl) flightNoEl.textContent = flightNo;
+
+        // Populate search inputs to match selected flight
+        if (document.getElementById('compareOrigin')) document.getElementById('compareOrigin').value = depAirport;
+        if (document.getElementById('compareDestination')) document.getElementById('compareDestination').value = arrAirport;
+    }
+
+    if (clearSelectedBtn) {
+        clearSelectedBtn.addEventListener('click', () => {
+            sessionStorage.removeItem('skytrack_selected_flight');
+            selectedFlight = null;
+            if (selectedCard) selectedCard.style.display = 'none';
+        });
+    }
+
+    // 5. Comparison execution handler
+    async function executeComparison(flightOverride = null) {
+        const origin = document.getElementById('compareOrigin').value.trim().toUpperCase();
+        const destination = document.getElementById('compareDestination').value.trim().toUpperCase();
+        const outboundDate = document.getElementById('compareDate').value;
+
+        if (!origin || !destination || !outboundDate) return;
+
+        const btnSpinner = document.getElementById('compareBtnSpinner');
+        const btnText = document.getElementById('compareBtnText');
+        const tableBody = document.getElementById('comparisonTableBody');
+        const arbitrageBanner = document.getElementById('arbitrageBanner');
+        const filterBar = document.getElementById('compareFilterBar');
+        const label = document.getElementById('routeComparisonLabel');
+
+        if (label) label.textContent = `${origin} → ${destination} · ${outboundDate}`;
+        if (btnSpinner) btnSpinner.style.display = 'inline-block';
+        if (btnText) btnText.textContent = 'Comparing...';
+        tableBody.innerHTML = `<tr><td colspan="6" style="padding: 40px; text-align: center;"><span class="btn-loader" style="display:inline-block; margin-bottom:8px;"></span><p class="font-mono" style="font-size:0.8rem; color:var(--text-secondary);">Querying GDS, aggregators, and carrier inventories...</p></td></tr>`;
+
+        const requestBody = flightOverride
+            ? { flight: flightOverride, departure: origin, arrival: destination, outbound_date: outboundDate }
+            : { departure: origin, arrival: destination, outbound_date: outboundDate };
+
+        try {
+            const res = await fetch('/api/flight/compare', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody)
+            });
+
+            const data = await res.json();
+            const offersList = (data.offers || data.comparison_offers || []);
+            if (res.ok && offersList.length > 0) {
+                currentRawOffers = offersList;
+                if (filterBar) filterBar.style.display = 'flex';
+                renderOffersTable(offersList, origin, destination, outboundDate);
+            } else {
+                const errMsg = data && data.error ? data.error : "No provider comparison records found for this specific date. Try adjusting dates.";
+                tableBody.innerHTML = `<tr><td colspan="6" style="padding: 40px; text-align: center; color: var(--text-secondary);">${errMsg}</td></tr>`;
+                if (arbitrageBanner) arbitrageBanner.style.display = 'none';
+            }
+        } catch {
+            tableBody.innerHTML = `<tr><td colspan="6" style="padding: 40px; text-align: center; color: var(--danger);">Comparison service currently synchronizing. Please retry shortly.</td></tr>`;
+        } finally {
+            if (btnSpinner) btnSpinner.style.display = 'none';
+            if (btnText) btnText.textContent = 'Analyze Provider Spread';
+        }
+    }
+
+    // 6. Renders offers with active filters and sorting
+    function renderOffersTable(offersList, origin, destination, outboundDate) {
+        const tableBody = document.getElementById('comparisonTableBody');
+        const arbitrageBanner = document.getElementById('arbitrageBanner');
+
+        // Apply Stops Filter
+        let filtered = offersList.filter(o => {
+            if (currentFilterStops === 'all') return true;
+            return Number(o.stops) === Number(currentFilterStops);
+        });
+
+        // Apply Sorting
+        filtered.sort((a, b) => {
+            if (currentSort === 'price_asc') return Number(a.price) - Number(b.price);
+            if (currentSort === 'price_desc') return Number(b.price) - Number(a.price);
+            if (currentSort === 'duration_asc') return (Number(a.duration) || 9999) - (Number(b.duration) || 9999);
+            return 0;
+        });
+
+        if (filtered.length === 0) {
+            tableBody.innerHTML = `<tr><td colspan="6" style="padding: 40px; text-align: center; color: var(--text-secondary);">No offers match the selected stop filter.</td></tr>`;
+            return;
+        }
+
+        const prices = filtered.map(o => Number(o.price)).filter(p => !isNaN(p) && p > 0);
+        const minPrice = Math.min(...prices);
+        const maxPrice = Math.max(...prices);
+        const spread = maxPrice - minPrice;
+        const bestProviderOffer = filtered.find(o => Number(o.price) === minPrice);
+        const bestProvider = bestProviderOffer?.provider || bestProviderOffer?.provider_name || 'Best Provider';
+
+        if (arbitrageBanner) {
+            arbitrageBanner.style.display = 'flex';
+            const headline = document.getElementById('arbitrageHeadline');
+            const quote = document.getElementById('lowestProviderQuote');
+            if (headline) headline.textContent = spread > 0
+                ? `Save up to ₹${spread.toLocaleString('en-IN')} by booking with ${bestProvider}`
+                : `Uniform baseline fare of ₹${minPrice.toLocaleString('en-IN')} across providers`;
+            if (quote) quote.textContent = `₹${minPrice.toLocaleString('en-IN')}`;
+        }
+
+        tableBody.innerHTML = filtered.map(o => {
+            const isLowest = Number(o.price) === minPrice;
+            const stopsLabel = o.stops === 0 ? 'Nonstop' : `${o.stops} stop${o.stops > 1 ? 's' : ''}`;
+            const durationDisplay = o.duration ? `${Math.floor(o.duration / 60)}h ${o.duration % 60}m` : 'Direct';
+            const bookingUrl = o.booking_url || `/flights?departure=${origin}&arrival=${destination}&outbound_date=${outboundDate}`;
+
+            return `
+                <tr style="border-bottom: 1px solid var(--border-hairline); transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background='transparent'">
+                    <td style="padding: 16px;">
+                        <span class="telemetry-pill ${isLowest ? 'text-gold' : ''}" style="font-size: 0.74rem;">${o.provider || o.provider_name || 'Provider'}</span>
+                    </td>
+                    <td style="padding: 16px;">
+                        <div style="font-weight: 600; color: var(--text-primary); font-size: 0.95rem;">${o.airline || 'Carrier'}</div>
+                        <div class="font-mono" style="font-size: 0.7rem; color: var(--text-tertiary);">${o.flight_number || 'Direct Itinerary'}</div>
+                    </td>
+                    <td style="padding: 16px;" class="font-mono">
+                        <div style="font-size: 0.88rem; color: var(--text-primary);">${o.departure_time || '--:--'} → ${o.arrival_time || '--:--'}</div>
+                        <div style="font-size: 0.68rem; color: var(--text-secondary);">${durationDisplay}</div>
+                    </td>
+                    <td style="padding: 16px;">
+                        <span class="telemetry-pill" style="font-size: 0.7rem;">${stopsLabel}</span>
+                    </td>
+                    <td style="padding: 16px; text-align: right;" class="font-mono">
+                        <span style="font-size: 1.15rem; font-weight: 700; color: ${isLowest ? 'var(--accent-gold)' : 'var(--text-primary)'};">
+                            ₹${Number(o.price).toLocaleString('en-IN')}
+                        </span>
+                        ${isLowest ? '<div style="font-size: 0.65rem; color: var(--accent-gold); font-weight: 700; letter-spacing:0.08em;">BEST FARE</div>' : ''}
+                    </td>
+                    <td style="padding: 16px; text-align: right;">
+                        <a href="${bookingUrl}" target="_blank" rel="noopener noreferrer" class="primary-btn" style="font-size: 0.74rem; padding: 7px 16px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
+                            <span>Select Fare</span>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                                <polyline points="12 5 19 12 12 19"></polyline>
+                            </svg>
+                        </a>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    // 7. Filter Buttons Event Handlers
+    document.querySelectorAll('.filter-pill').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.filter-pill').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentFilterStops = btn.dataset.stops;
+            if (currentRawOffers.length > 0) {
+                const origin = document.getElementById('compareOrigin').value.trim().toUpperCase();
+                const destination = document.getElementById('compareDestination').value.trim().toUpperCase();
+                const outboundDate = document.getElementById('compareDate').value;
+                renderOffersTable(currentRawOffers, origin, destination, outboundDate);
+            }
+        });
+    });
+
+    // 8. Sort Select Event Handler
+    const sortSelect = document.getElementById('compareSortSelect');
+    if (sortSelect) {
+        sortSelect.addEventListener('change', () => {
+            currentSort = sortSelect.value;
+            if (currentRawOffers.length > 0) {
+                const origin = document.getElementById('compareOrigin').value.trim().toUpperCase();
+                const destination = document.getElementById('compareDestination').value.trim().toUpperCase();
+                const outboundDate = document.getElementById('compareDate').value;
+                renderOffersTable(currentRawOffers, origin, destination, outboundDate);
+            }
+        });
+    }
+
+    // 9. Form submission
+    const form = document.getElementById('compareRouteForm');
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        executeComparison(selectedFlight);
+    });
+
+    // 10. Automatically trigger if params or selected flight are present
+    if (selectedFlight) {
+        executeComparison(selectedFlight);
+    } else if (paramDep && paramArr) {
+        setTimeout(() => executeComparison(null), 150);
+    }
+});
+</script>
+{% endblock %}

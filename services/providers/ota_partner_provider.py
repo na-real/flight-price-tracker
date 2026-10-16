@@ -48,7 +48,7 @@ class OtaPartnerProvider(BaseFlightProvider):
             provider_type="ota"
         )
         self.last_status = "active"
-        self.last_message = "MakeMyTrip, Cleartrip, and EaseMyTrip integrations active"
+        self.last_message = "MakeMyTrip, Cleartrip, and EaseMyTrip partner integrations active (estimated fares derived from reference flights)"
         self.last_offer_count = 0
 
     def is_configured(self) -> bool:
@@ -60,8 +60,8 @@ class OtaPartnerProvider(BaseFlightProvider):
             provider_name=self.provider_name,
             provider_type=self.provider_type,
             status=self.last_status,
-            is_live=True,
-            message="Active booking channels: MakeMyTrip, Cleartrip, EaseMyTrip, Expedia",
+            is_live=False,
+            message="MakeMyTrip, Cleartrip, EaseMyTrip partner channels active (estimated fares derived from reference flights)",
             offers_count=self.last_offer_count
         )
 
@@ -132,7 +132,7 @@ class OtaPartnerProvider(BaseFlightProvider):
                     stops=int(flight.get("stops", 0)),
                     price=adjusted_price,
                     currency=flight.get("currency", "INR"),
-                    baggage=ota["baggage"],
+                    baggage=f"{ota['baggage']} (Estimated Fare)",
                     booking_url=self._build_ota_link(ota["id"], departure, arrival, outbound_date, return_date),
                     trip_type="round_trip" if return_date else "one_way",
                     segments=segments,

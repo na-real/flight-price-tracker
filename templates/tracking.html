@@ -1,0 +1,417 @@
+{% extends "base.html" %}
+
+{% block title %}Radar Flight Price Tracking & Autonomous Surveillance — SkyTracker{% endblock %}
+{% block meta_description %}Monitor flight trajectories with automated background radar price checks, historical volatility telemetry, and zero-latency email notifications.{% endblock %}
+{% block canonical_url %}https://skytrack-flights.onrender.com/tracking{% endblock %}
+
+{% block content %}
+<section class="page-hero">
+    <div class="page-header">
+        <span class="page-badge font-mono">AUTONOMOUS RADAR SURVEILLANCE</span>
+        <h1 class="page-title">Radar Price Tracking</h1>
+        <p class="page-subtitle">
+            Configure automated background radar alerts. Our system continuously verifies airline fares against your target threshold, transmitting instant notifications upon favorable rate movements.
+        </p>
+    </div>
+
+    <!-- RADAR TELEMETRY METRICS ROW -->
+    <div class="dashboard-stats-row" style="margin-bottom: 36px;">
+        <div class="dash-stat-card">
+            <span class="dash-stat-label">MONITORED TRAJECTORIES</span>
+            <span class="dash-stat-value" id="trackedCountMetric">—</span>
+            <span class="font-mono" style="font-size: 0.7rem; color: var(--text-tertiary);">Active in radar database</span>
+        </div>
+        <div class="dash-stat-card">
+            <span class="dash-stat-label">TARGETS SATISFIED</span>
+            <span class="dash-stat-value" id="targetMetMetric">—</span>
+            <span class="font-mono text-gold" style="font-size: 0.7rem;">Optimal purchase windows</span>
+        </div>
+        <div class="dash-stat-card">
+            <span class="dash-stat-label">RADAR ENGINE STATUS</span>
+            <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+                <span class="status-dot status-active" id="radarStatusDot"></span>
+                <span class="dash-stat-value" id="radarStatusText" style="font-size: 1.4rem;">Active</span>
+            </div>
+            <span class="font-mono" id="radarDetailText" style="font-size: 0.7rem; color: var(--text-tertiary);">Automated checks every 6h</span>
+        </div>
+    </div>
+
+    <!-- TWO-COLUMN WORKFLOW: ARM NEW ROUTE & ACTIVE RADAR TRAJECTORIES -->
+    <div class="dashboard-grid">
+        <!-- Col 1: Arm New Surveillance Form -->
+        <div class="contact-form-card" style="height: fit-content;">
+            <div style="margin-bottom: 24px;">
+                <span class="page-badge font-mono">NEW RADAR TARGET</span>
+                <h3 class="font-serif" style="font-size: 1.5rem; margin-top: 6px;">Arm Route Radar</h3>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px;">
+                    Enter route details to monitor airline pricing autonomously.
+                </p>
+            </div>
+
+            <form id="newTrackRouteForm" autocomplete="off" onsubmit="return false;">
+                <div class="form-group">
+                    <label for="trackOrigin" class="form-label">ORIGIN AIRPORT (IATA)</label>
+                    <input type="text" id="trackOrigin" class="form-input font-mono" placeholder="DEL" maxlength="3" required style="text-transform: uppercase;">
+                </div>
+
+                <div class="form-group">
+                    <label for="trackDest" class="form-label">DESTINATION AIRPORT (IATA)</label>
+                    <input type="text" id="trackDest" class="form-input font-mono" placeholder="BOM" maxlength="3" required style="text-transform: uppercase;">
+                </div>
+
+                <div class="form-group">
+                    <label for="trackOutboundDate" class="form-label">DEPARTURE DATE</label>
+                    <input type="date" id="trackOutboundDate" class="form-input font-mono" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="trackTargetPriceInput" class="form-label">TARGET PRICE (INR)</label>
+                    <input type="number" id="trackTargetPriceInput" class="form-input font-mono" placeholder="4500" min="500" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="trackNotificationEmail" class="form-label">DISPATCH EMAIL</label>
+                    <input type="email" id="trackNotificationEmail" class="form-input" placeholder="sovereign@domain.com" required value="{{ logged_in_user or '' }}">
+                </div>
+
+                <div id="armRadarError" class="auth-error-banner" style="display: none;"></div>
+                <div id="armRadarSuccess" class="contact-success-card" style="display: none;"></div>
+
+                <button type="submit" id="armRadarBtn" class="primary-btn" style="width: 100%; margin-top: 10px;">
+                    <span id="armRadarSpinner" class="btn-loader" style="display: none;"></span>
+                    <span id="armRadarText">Initiate Radar Surveillance</span>
+                </button>
+            </form>
+        </div>
+
+        <!-- Col 2: Currently Monitored Trajectories -->
+        <div class="dashboard-main-panel">
+            <div class="glass-panel" style="padding: 32px; border-radius: var(--radius-xl);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+                    <div>
+                        <h3 class="font-serif" style="font-size: 1.5rem;">Active Surveillance Registry</h3>
+                        <p style="font-size: 0.84rem; color: var(--text-secondary); margin-top: 2px;">
+                            Trajectories undergoing background price verification.
+                        </p>
+                    </div>
+                    <button type="button" id="refreshTrackedBtn" class="cta-secondary" style="padding: 6px 14px; font-size: 0.74rem;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
+                            <polyline points="23 4 23 10 17 10"></polyline>
+                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                        </svg>
+                        <span>Sync Telemetry</span>
+                    </button>
+                </div>
+
+                <!-- Tracked flights feed container -->
+                <div id="trackedFlightsList" style="display: flex; flex-direction: column; gap: 16px;">
+                    <div style="padding: 40px; text-align: center; color: var(--text-secondary);">
+                        <span class="btn-loader" style="display: inline-block; margin-bottom: 12px;"></span>
+                        <p class="font-mono" style="font-size: 0.82rem;">Synchronizing radar telemetry...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- HISTORY MODAL -->
+<div id="priceHistoryModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="historyModalTitle" style="display: none;">
+    <div class="modal-card glass-panel" style="max-width: 680px;">
+        <div class="modal-header">
+            <div>
+                <span class="page-badge font-mono">CHRONOLOGICAL VOLATILITY</span>
+                <h3 id="historyModalTitle" class="modal-title font-serif">Route Price Timeline</h3>
+            </div>
+            <button type="button" id="closeHistoryModalBtn" class="modal-close-btn" aria-label="Close dialog">×</button>
+        </div>
+        <div style="height: 320px; width: 100%; margin-top: 16px;">
+            <canvas id="priceHistoryChart"></canvas>
+        </div>
+        <div id="historyStatsBar" class="font-mono" style="margin-top: 20px; padding: 12px 16px; background: var(--bg-surface-subtle); border-radius: var(--radius-md); font-size: 0.76rem; color: var(--text-secondary); display: flex; justify-content: space-between;">
+            <span id="histLowestVal">LOWEST: —</span>
+            <span id="histLatestVal">CURRENT: —</span>
+            <span id="histTargetVal">TARGET: —</span>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // Set default outbound date 14 days out
+    const dateInput = document.getElementById('trackOutboundDate');
+    if (dateInput && !dateInput.value) {
+        const d = new Date();
+        d.setDate(d.getDate() + 14);
+        dateInput.value = d.toISOString().split('T')[0];
+    }
+
+    // Load radar background monitor status
+    fetch('/api/radar/status')
+        .then(r => r.json())
+        .then(data => {
+            const statusText = document.getElementById('radarStatusText');
+            const statusDot = document.getElementById('radarStatusDot');
+            const detailText = document.getElementById('radarDetailText');
+            if (statusText && data.status) statusText.textContent = data.status;
+            if (detailText && data.status_detail) detailText.textContent = data.status_detail;
+        }).catch(() => {});
+
+    // Load and render tracked flights list
+    loadTrackingFeed();
+
+    const refreshBtn = document.getElementById('refreshTrackedBtn');
+    if (refreshBtn) refreshBtn.addEventListener('click', loadTrackingFeed);
+
+    // Form to arm new route
+    const form = document.getElementById('newTrackRouteForm');
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const origin = document.getElementById('trackOrigin').value.trim().toUpperCase();
+        const destination = document.getElementById('trackDest').value.trim().toUpperCase();
+        const date = document.getElementById('trackOutboundDate').value;
+        const targetPrice = document.getElementById('trackTargetPriceInput').value;
+        const email = document.getElementById('trackNotificationEmail').value.trim();
+
+        const errorDiv = document.getElementById('armRadarError');
+        const successDiv = document.getElementById('armRadarSuccess');
+        const spinner = document.getElementById('armRadarSpinner');
+        const btnText = document.getElementById('armRadarText');
+
+        errorDiv.style.display = 'none';
+        successDiv.style.display = 'none';
+        spinner.style.display = 'inline-block';
+        btnText.textContent = 'Engaging Radar...';
+
+        try {
+            const res = await fetch('/api/track', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    departure: origin,
+                    arrival: destination,
+                    outbound_date: date,
+                    target_price: targetPrice,
+                    email: email
+                })
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                // Save delete token for IDOR-hardened deletion
+                if (data.id && data.delete_token) {
+                    saveDeleteToken(data.id, data.delete_token);
+                }
+                successDiv.textContent = data.message || 'Route successfully registered in autonomous radar.';
+                successDiv.style.display = 'block';
+                form.reset();
+                if (dateInput) {
+                    const d = new Date();
+                    d.setDate(d.getDate() + 14);
+                    dateInput.value = d.toISOString().split('T')[0];
+                }
+                loadTrackingFeed();
+            } else {
+                errorDiv.textContent = data.error || 'Failed to arm radar target. Check inputs.';
+                errorDiv.style.display = 'block';
+            }
+        } catch {
+            errorDiv.textContent = 'Network transmission error. Please retry.';
+            errorDiv.style.display = 'block';
+        } finally {
+            spinner.style.display = 'none';
+            btnText.textContent = 'Initiate Radar Surveillance';
+        }
+    });
+});
+
+async function loadTrackingFeed() {
+    const list = document.getElementById('trackedFlightsList');
+    const metricTotal = document.getElementById('trackedCountMetric');
+    const metricMet = document.getElementById('targetMetMetric');
+
+    try {
+        const res = await fetch('/api/tracked');
+        const data = await res.json();
+
+        if (Array.isArray(data)) {
+            if (metricTotal) metricTotal.textContent = data.length;
+
+            let metCount = 0;
+            data.forEach(item => {
+                const current = Number(item.last_price || item.lowest_price);
+                const target = Number(item.target_price);
+                if (!isNaN(current) && !isNaN(target) && current > 0 && current <= target) {
+                    metCount++;
+                }
+            });
+            if (metricMet) metricMet.textContent = `${metCount} of ${data.length}`;
+
+            if (data.length === 0) {
+                list.innerHTML = `
+                    <div style="padding: 48px 24px; text-align: center; color: var(--text-secondary);">
+                        <p class="font-serif" style="font-size: 1.25rem; margin-bottom: 6px;">No Active Trajectories</p>
+                        <p style="font-size: 0.84rem;">Arm your first route above to initiate real-time radar price tracking.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            list.innerHTML = data.map(item => {
+                const current = Number(item.last_price || item.lowest_price || 0);
+                const target = Number(item.target_price || 0);
+                const isMet = current > 0 && current <= target;
+
+                return `
+                    <div class="glass-panel" style="padding: 20px 24px; border-radius: var(--radius-lg); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <span class="font-serif" style="font-size: 1.3rem; font-weight: 600; color: var(--text-primary);">
+                                    ${item.departure} → ${item.arrival}
+                                </span>
+                                <span class="telemetry-pill ${isMet ? 'text-gold' : ''}" style="font-size: 0.68rem;">
+                                    ${isMet ? 'TARGET MET' : 'SURVEILLING'}
+                                </span>
+                            </div>
+                            <div class="font-mono" style="font-size: 0.76rem; color: var(--text-secondary); margin-top: 4px;">
+                                Departure: ${item.outbound_date} · Target: ₹${target.toLocaleString('en-IN')}
+                            </div>
+                        </div>
+
+                        <div style="display: flex; align-items: center; gap: 20px;">
+                            <div style="text-align: right;" class="font-mono">
+                                <div style="font-size: 1.25rem; font-weight: 700; color: ${isMet ? 'var(--accent-gold)' : 'var(--text-primary)'};">
+                                    ₹${current > 0 ? current.toLocaleString('en-IN') : 'Scanning'}
+                                </div>
+                                <div style="font-size: 0.65rem; color: var(--text-tertiary);">LAST RECORDED FARE</div>
+                            </div>
+
+                            <button type="button" class="cta-secondary" style="padding: 6px 12px; font-size: 0.72rem;" onclick="viewHistoryChart(${item.id}, '${item.departure}', '${item.arrival}', ${target})">
+                                Timeline
+                            </button>
+
+                            <button type="button" class="cta-secondary" style="padding: 6px 10px; font-size: 0.72rem; color: var(--danger); border-color: var(--danger-dim);" onclick="removeTrackedRoute(${item.id})" title="Stop tracking route">
+                                Remove
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    } catch {
+        list.innerHTML = `<div style="padding: 30px; text-align: center; color: var(--danger);">Unable to synchronize radar feed. Please retry.</div>`;
+    }
+}
+
+async function removeTrackedRoute(id) {
+    if (!confirm('Disarm radar surveillance for this route?')) return;
+    const token = getDeleteToken(id);
+
+    try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['X-Delete-Token'] = token;
+
+        const res = await fetch(`/api/tracked/${id}`, {
+            method: 'DELETE',
+            headers: headers
+        });
+
+        if (res.ok) {
+            removeDeleteToken(id);
+            loadTrackingFeed();
+        } else {
+            const err = await res.json();
+            alert(err.error || 'Unable to disarm route.');
+        }
+    } catch {
+        alert('Transmission error. Please retry.');
+    }
+}
+
+let historyChartInstance = null;
+async function viewHistoryChart(id, dep, arr, target) {
+    const modal = document.getElementById('priceHistoryModal');
+    const title = document.getElementById('historyModalTitle');
+    const canvas = document.getElementById('priceHistoryChart');
+    const lowestVal = document.getElementById('histLowestVal');
+    const latestVal = document.getElementById('histLatestVal');
+    const targetVal = document.getElementById('histTargetVal');
+
+    if (title) title.textContent = `${dep} → ${arr} Volatility Telemetry`;
+    if (targetVal) targetVal.textContent = `TARGET: ₹${target.toLocaleString('en-IN')}`;
+    if (modal) modal.style.display = 'flex';
+
+    try {
+        const token = getDeleteToken(id);
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['X-Delete-Token'] = token;
+
+        const res = await fetch(`/api/history/${id}`, { headers });
+        const data = await res.json();
+        const historyList = Array.isArray(data) ? data : (data.history || []);
+
+        if (res.ok && historyList.length > 0) {
+            const labels = historyList.map(h => (h.checked_at || '').substring(5, 16));
+            const prices = historyList.map(h => Number(h.price));
+
+            const minPrice = Math.min(...prices);
+            const currPrice = prices[prices.length - 1];
+
+            if (lowestVal) lowestVal.textContent = `LOWEST: ₹${minPrice.toLocaleString('en-IN')}`;
+            if (latestVal) latestVal.textContent = `CURRENT: ₹${currPrice.toLocaleString('en-IN')}`;
+
+            if (historyChartInstance) historyChartInstance.destroy();
+
+            const ctx = canvas.getContext('2d');
+            historyChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Recorded Fare',
+                            data: prices,
+                            borderColor: '#dfc99e',
+                            borderWidth: 2,
+                            tension: 0.35,
+                            fill: true,
+                            backgroundColor: 'rgba(223, 201, 158, 0.08)',
+                            pointBackgroundColor: '#dfc99e',
+                            pointRadius: 4
+                        },
+                        {
+                            label: 'Target Threshold',
+                            data: labels.map(() => target),
+                            borderColor: '#34d399',
+                            borderWidth: 1.5,
+                            borderDash: [5, 5],
+                            pointRadius: 0,
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'rgba(255,255,255,0.5)', font: { family: 'Space Mono', size: 9 } } },
+                        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'rgba(255,255,255,0.5)', font: { family: 'Space Mono', size: 9 } } }
+                    }
+                }
+            });
+        }
+    } catch {}
+}
+
+const closeHistoryBtn = document.getElementById('closeHistoryModalBtn');
+if (closeHistoryBtn) {
+    closeHistoryBtn.addEventListener('click', () => {
+        const modal = document.getElementById('priceHistoryModal');
+        if (modal) modal.style.display = 'none';
+    });
+}
+</script>
+{% endblock %}

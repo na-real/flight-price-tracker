@@ -58,6 +58,14 @@ def run():
                 print("No flight results found.")
                 continue
 
+            # Ensure simulated fares and estimates cannot trigger misleading price-drop alerts
+            if any(r.get("is_simulated") for r in results) or not os.getenv("SERPAPI_KEY"):
+                print(
+                    f"Notice: Live SerpAPI pricing unavailable for {flight['departure']} → {flight['arrival']}. "
+                    f"Skipping price alert and history recording to prevent misleading notifications."
+                )
+                continue
+
             # Find cheapest current flight
             current_price = min(
                 r["price"]

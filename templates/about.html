@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}About SkyTracker — Haute Flight Intelligence & Philosophy{% endblock %}
+{% block meta_description %}Learn how SkyTracker redefines flight discovery with mathematical fare arbitrage, surreal quiet luxury design, and autonomous background radar surveillance.{% endblock %}
+{% block canonical_url %}https://skytrack-flights.onrender.com/about{% endblock %}
+
+{% block content %}
+<section class="page-hero">
+    <div class="page-header">
+        <span class="page-badge font-mono">MANIFESTO & ARCHITECTURE</span>
+        <h1 class="page-title">The Philosophy of Quiet Flight Intelligence</h1>
+        <p class="page-subtitle">
+            Travel technology has surrendered to chaos—deceptive countdown clocks, dark patterns, and artificial price hikes. SkyTracker was conceived to restore serenity, mathematical truth, and quiet luxury to flight discovery.
+        </p>
+    </div>
+
+    <!-- EDITORIAL NARRATIVE -->
+    <div class="about-narrative-card">
+        <p class="about-body-text">
+            Modern commercial flight booking is designed around anxiety. Legacy travel agencies and algorithmic aggregator platforms deploy visual noise—flashing timers, artificial scarcity warnings (<em>“Only 1 seat left at this price!”</em>), and variable pricing based on your device profile.
+        </p>
+        <p class="about-body-text">
+            <strong>SkyTracker takes the opposite stance: Quiet Luxury.</strong> We provide uncompromised mathematical transparency across international airline inventories, Global Distribution Systems (GDS), and online travel platforms. Without cookies, without behavioral surveillance, and without commercial bias.
+        </p>
+        <p class="about-body-text">
+            Whether charting a trajectory across curated sanctuaries or configuring continuous radar surveillance for seasonal journeys, SkyTracker exists to deliver the world without the noise.
+        </p>
+    </div>
+
+    <!-- FOUR FOUNDATIONAL PILLARS -->
+    <div>
+        <div style="text-align: center; margin-bottom: 32px;">
+            <span class="page-badge font-mono">CORE PRINCIPLES</span>
+            <h2 class="font-serif" style="font-size: 2.2rem; margin-top: 8px;">Architectural Standards</h2>
+        </div>
+
+        <div class="principles-grid">
+            <div class="principle-card">
+                <span class="principle-num font-mono">01 // ARBITRAGE</span>
+                <h3 class="principle-title">Mathematical Parity</h3>
+                <p class="principle-desc">
+                    Airlines publish volatile fare classes across fragmented distribution channels. Our intelligence engine inspects multiple sources simultaneously to identify true carrier arbitrage.
+                </p>
+            </div>
+
+            <div class="principle-card">
+                <span class="principle-num font-mono">02 // SURVEILLANCE</span>
+                <h3 class="principle-title">Autonomous Radar</h3>
+                <p class="principle-desc">
+                    Rather than repeatedly querying routes manually, set your desired price threshold. Our background radar inspects airline systems automatically and alerts you when your target is achieved.
+                </p>
+            </div>
+
+            <div class="principle-card">
+                <span class="principle-num font-mono">03 // AESTHETICS</span>
+                <h3 class="principle-title">Surreal Quiet Luxury</h3>
+                <p class="principle-desc">
+                    Crafted with deep Obsidian Noir tones, celestial typography, and procedural WebGL spatial motion. Every interaction is designed to feel calm, deliberate, and timeless.
+                </p>
+            </div>
+
+            <div class="principle-card">
+                <span class="principle-num font-mono">04 // INTEGRITY</span>
+                <h3 class="principle-title">Zero Dark Patterns</h3>
+                <p class="principle-desc">
+                    No countdown timers. No forced add-ons. No fake inventory alerts. We do not sell passenger browsing profiles or monetize behavioral telemetry.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- CALL TO ACTION -->
+    <div class="glass-panel" style="margin-top: 60px; padding: 48px; border-radius: var(--radius-xl); text-align: center; border-color: var(--accent-gold-border);">
+        <h3 class="font-serif" style="font-size: 2rem; margin-bottom: 12px;">Experience Serene Flight Discovery</h3>
+        <p style="color: var(--text-secondary); max-width: 540px; margin: 0 auto 28px; font-size: 0.96rem;">
+            Explore current airline fares and discover the tranquility of intelligence without distraction.
+        </p>
+        <div style="display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;">
+            <a href="/flights" class="primary-btn">
+                <span>Explore Live Flights</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                    <polyline points="12 5 19 12 12 19"></polyline>
+                </svg>
+            </a>
+            <a href="/compare" class="cta-secondary">
+                <span>View Comparison Matrix</span>
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}

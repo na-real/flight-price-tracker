@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Sign In — SkyTracker Sovereign Access{% endblock %}
+{% block meta_description %}Access your personal SkyTracker member portal, monitored flight routes, and custom radar fare triggers.{% endblock %}
+{% block canonical_url %}https://skytrack-flights.onrender.com/login{% endblock %}
+
+{% block content %}
+<section class="page-hero auth-card-wrapper">
+    <div class="auth-card">
+        <div style="text-align: center; margin-bottom: 20px;">
+            <span class="page-badge font-mono">SOVEREIGN PORTAL</span>
+            <h1 class="auth-title">Authenticate Access</h1>
+            <p class="auth-subtitle">Enter credentials to unlock sovereign radar surveillance and saved trajectories.</p>
+        </div>
+
+        {% if error %}
+        <div class="auth-error-banner" id="serverErrorBanner">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span>{{ error }}</span>
+        </div>
+        {% endif %}
+        <div id="jsErrorBanner" class="auth-error-banner" style="display: none;"></div>
+
+        <form method="POST" action="/login{% if request.args.get('next') %}?next={{ request.args.get('next') }}{% endif %}" id="loginForm" autocomplete="on">
+            <div class="form-group">
+                <label for="email" class="form-label">REGISTERED EMAIL</label>
+                <input type="email" id="email" name="email" class="form-input" placeholder="sovereign@domain.com" required autofocus autocomplete="email">
+            </div>
+
+            <div class="form-group">
+                <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                    <label for="password" class="form-label">SECURITY KEYWORD</label>
+                </div>
+                <div class="password-input-wrap">
+                    <input type="password" id="password" name="password" class="form-input" placeholder="••••••••" required minlength="6" autocomplete="current-password">
+                    <button type="button" id="togglePasswordBtn" class="password-toggle-btn" aria-label="Toggle password visibility">
+                        <svg id="eyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <button type="submit" id="loginSubmitBtn" class="primary-btn" style="width: 100%; margin-top: 10px;">
+                <span id="loginSpinner" class="btn-loader" style="display: none;"></span>
+                <span id="loginBtnText">Authorize Session</span>
+            </button>
+        </form>
+
+        <p class="auth-footer-text">
+            Unregistered traveler? <a href="/signup" class="auth-footer-link">Establish Sovereign Account</a>
+        </p>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const pwdInput = document.getElementById('password');
+    const toggleBtn = document.getElementById('togglePasswordBtn');
+
+    if (toggleBtn && pwdInput) {
+        toggleBtn.addEventListener('click', () => {
+            const isPassword = pwdInput.type === 'password';
+            pwdInput.type = isPassword ? 'text' : 'password';
+            toggleBtn.style.color = isPassword ? 'var(--accent-gold)' : 'var(--text-tertiary)';
+        });
+    }
+
+    const form = document.getElementById('loginForm');
+    const submitBtn = document.getElementById('loginSubmitBtn');
+    const spinner = document.getElementById('loginSpinner');
+    const btnText = document.getElementById('loginBtnText');
+
+    if (form) {
+        form.addEventListener('submit', () => {
+            if (spinner) spinner.style.display = 'inline-block';
+            if (btnText) btnText.textContent = 'Verifying...';
+        });
+    }
+});
+</script>
+{% endblock %}

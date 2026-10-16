@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630" fill="none">
+    <defs>
+        <radialGradient id="ogBg" cx="50%" cy="40%" r="70%">
+            <stop offset="0%" stop-color="#0E1628"/>
+            <stop offset="60%" stop-color="#060912"/>
+            <stop offset="100%" stop-color="#030408"/>
+        </radialGradient>
+        <radialGradient id="ogAura" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#DFC99E" stop-opacity="0.14"/>
+            <stop offset="100%" stop-color="#DFC99E" stop-opacity="0"/>
+        </radialGradient>
+    </defs>
+    <!-- Background -->
+    <rect width="1200" height="630" fill="url(#ogBg)"/>
+    <!-- Subtle fine grid lines -->
+    <g stroke="rgba(255,255,255,0.03)" stroke-width="1">
+        <line x1="0" y1="157" x2="1200" y2="157"/>
+        <line x1="0" y1="315" x2="1200" y2="315"/>
+        <line x1="0" y1="472" x2="1200" y2="472"/>
+        <line x1="300" y1="0" x2="300" y2="630"/>
+        <line x1="600" y1="0" x2="600" y2="630"/>
+        <line x1="900" y1="0" x2="900" y2="630"/>
+    </g>
+    <!-- Ambient Aura -->
+    <circle cx="600" cy="210" r="240" fill="url(#ogAura)"/>
+
+    <!-- Minimalist Luxury Symbol (Centered at x=600, y=200, scale=3.6) -->
+    <g transform="translate(600, 200) scale(3.6)">
+        <ellipse cx="0" cy="0" rx="19" ry="8.5" transform="rotate(-28 0 0)" stroke="#DFC99E" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M 9 -11 C 2 -16, -8 -13, -8 -5 C -8 2, 8 -2, 8 5 C 8 13, -2 16, -9 11" stroke="#DFC99E" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <circle cx="10" cy="-9" r="2.2" fill="#DFC99E"/>
+    </g>
+
+    <!-- Typography -->
+    <text x="600" y="380" font-family="'Cinzel', 'Cormorant Garamond', serif" font-size="52" font-weight="600" letter-spacing="0.22em" fill="#F6F5F2" text-anchor="middle">
+        SKYTRACKER
+    </text>
+    <text x="600" y="420" font-family="'Plus Jakarta Sans', sans-serif" font-size="16" font-weight="600" letter-spacing="0.45em" fill="#DFC99E" text-anchor="middle">
+        FLIGHT INTELLIGENCE
+    </text>
+    <text x="600" y="480" font-family="'Plus Jakarta Sans', sans-serif" font-size="18" font-weight="300" fill="#9EA8BC" text-anchor="middle">
+        Multi-provider fare comparison and real-time radar price tracking
+    </text>
+
+    <!-- Bottom border frame detail -->
+    <line x1="420" y1="535" x2="780" y2="535" stroke="#DFC99E" stroke-opacity="0.25" stroke-width="1"/>
+</svg>

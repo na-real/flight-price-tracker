@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Terms of Service — SkyTracker Flight Intelligence{% endblock %}
+{% block meta_description %}Terms of Service governing the use of SkyTracker flight search, multi-provider price comparison, and automated radar monitoring.{% endblock %}
+{% block canonical_url %}https://skytrack-flights.onrender.com/terms{% endblock %}
+
+{% block content %}
+<section class="page-hero">
+    <div class="page-header" style="text-align: center;">
+        <span class="page-badge font-mono">LEGAL COMPLIANCE</span>
+        <h1 class="page-title">Terms of Service</h1>
+        <p class="page-subtitle" style="margin: 0 auto;">
+            Effective Date: October 2026 · Standard terms governing flight intelligence, price tracking, and platform usage.
+        </p>
+    </div>
+
+    <div class="doc-container">
+        <div class="doc-section">
+            <h2 class="doc-heading">1. Platform Nature & Services</h2>
+            <p class="doc-paragraph">
+                SkyTracker (“Platform”, “we”, “our”) is an independent flight price intelligence aggregator and radar surveillance platform. SkyTracker is not an airline, merchant of record, ticketing broker, or online travel agency.
+            </p>
+            <p class="doc-paragraph">
+                Our services comprise querying publicly accessible flight schedules, aggregating published airfares, comparing multi-provider pricing spreads, and dispatching autonomous radar price notifications configured by users.
+            </p>
+        </div>
+
+        <div class="doc-section">
+            <h2 class="doc-heading">2. Fare Availability & Third-Party Bookings</h2>
+            <p class="doc-paragraph">
+                All flight pricing, availability, baggage policies, seat allocations, and itinerary terms displayed on SkyTracker are sourced directly from airlines, Global Distribution Systems (GDS), and third-party travel providers.
+            </p>
+            <ul class="doc-list">
+                <li>SkyTracker does not issue airline tickets or accept payment for travel reservations.</li>
+                <li>When selecting a fare, you may be redirected to the carrier or third-party booking provider to complete your transaction under their respective terms.</li>
+                <li>Airline prices fluctuate dynamically according to carrier revenue management algorithms. Quoted fares are accurate at the time of query but cannot be guaranteed until finalized on the booking carrier’s site.</li>
+            </ul>
+        </div>
+
+        <div class="doc-section">
+            <h2 class="doc-heading">3. Radar Price Tracking & Notifications</h2>
+            <p class="doc-paragraph">
+                Our background radar surveillance monitors selected trajectories on a periodic cycle. While we strive for absolute promptness and accuracy:
+            </p>
+            <ul class="doc-list">
+                <li>Alerts are provided on a best-effort basis and should not be relied upon as a contractual guarantee of fare availability.</li>
+                <li>Users may disarm route tracking at any time via the Price Tracking or Dashboard interfaces using their authorized session or deletion tokens.</li>
+            </ul>
+        </div>
+
+        <div class="doc-section">
+            <h2 class="doc-heading">4. Acceptable Use & Security</h2>
+            <p class="doc-paragraph">
+                Users agree to interact with the platform in accordance with applicable laws. You agree not to:
+            </p>
+            <ul class="doc-list">
+                <li>Deploy automated bots, spiders, scrapers, or programmatic query scripts that exceed platform rate limits.</li>
+                <li>Attempt to bypass security controls, reverse proxy headers, or deletion authorization tokens.</li>
+                <li>Inject malicious input, header scripts, or spam via platform inquiry endpoints.</li>
+            </ul>
+        </div>
+
+        <div class="doc-section">
+            <h2 class="doc-heading">5. Limitation of Liability</h2>
+            <p class="doc-paragraph">
+                To the fullest extent permitted by applicable law, SkyTracker and its operators shall not be liable for any direct, indirect, incidental, or consequential damages resulting from flight delays, schedule cancellations, baggage claims, or booking disputes arising with third-party airlines or travel agencies.
+            </p>
+        </div>
+
+        <div class="doc-section">
+            <h2 class="doc-heading">6. Inquiries & Legal Contact</h2>
+            <p class="doc-paragraph">
+                For questions regarding these Terms of Service or institutional agreements, contact our concierge desk at <a href="mailto:concierge@skytrack.luxury" class="contact-info-link">concierge@skytrack.luxury</a>.
+            </p>
+        </div>
+    </div>
+</section>
+{% endblock %}

@@ -1395,7 +1395,9 @@ def _normalize_itinerary(itinerary):
         "segments": segments,
         "layovers": build_layovers(itinerary, segments),
         "departure_token": itinerary.get("departure_token", ""),
-        "booking_token": itinerary.get("booking_token", "")
+        "booking_token": itinerary.get("booking_token", ""),
+        "is_simulated": False,
+        "is_live": True
     }
 
 def _serpapi_request(params):
@@ -1488,7 +1490,9 @@ def search_flights(departure, arrival, outbound_date, return_date=None, travel_c
                 }],
                 "layovers": [] if item["stops"] == 0 else [{
                     "id": "NAG", "name": "Nagpur Airport", "duration": 45, "overnight": False
-                }]
+                }],
+                "is_simulated": True,
+                "is_live": False
             }
             if not return_date:
                 demo_list.append(out_leg)
@@ -1521,6 +1525,8 @@ def search_flights(departure, arrival, outbound_date, return_date=None, travel_c
                     "return_layovers": [], "price": item["price"] * 2 - 400,
                     "reference_outbound_price": item["price"], "reference_return_price": item["price"],
                     "reference_separate_total": item["price"] * 2,
+                    "is_simulated": True,
+                    "is_live": False,
                 })
         return sorted(demo_list, key=lambda f: f["price"])
 
@@ -1543,7 +1549,7 @@ def search_flights(departure, arrival, outbound_date, return_date=None, travel_c
     try:
         data = _serpapi_request(params)
     except Exception as err:
-        print(f"SerpAPI quota notice: {err}. Using simulated live flight intelligence.")
+        print(f"SerpAPI quota notice: {err}. Using simulated flight intelligence.")
         return _get_demo_flights()
 
     itineraries = _collect_itineraries(data)
@@ -1790,7 +1796,9 @@ def search_multi_city_flights(
             "children": children or 0,
             "infants": infants or 0,
             "passengers": passenger_count,
-            "travel_class": travel_class
+            "travel_class": travel_class,
+            "is_simulated": True,
+            "is_live": False
         })
 
     return sorted(combined_itineraries, key=lambda f: f["price"])

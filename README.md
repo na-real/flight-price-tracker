@@ -148,12 +148,9 @@ flight-price-tracker/
 
 SkyTrack is deployed using:
 
-- **Render** — Flask web application
-- **Supabase** — persistent PostgreSQL database
-- **GitHub Actions** — automated hourly flight price checks
-- **Gmail SMTP** — email price alerts
-
-
+- **Render** — Web application served via Gunicorn (`gunicorn -w 2 -b 0.0.0.0:$PORT app:app`) and scheduled background price checker
+- **Managed PostgreSQL (Supabase / Render Postgres)** — Mandatory persistent database in production. Container filesystems on Render are ephemeral, so SQLite (`flights.db`) is strictly for local development and testing; all production persistence requires `DATABASE_URL`.
+- **Gmail SMTP** — Email price drop alerts via TLS port 587
 
 ### Live Application
 
@@ -177,22 +174,21 @@ The test suite covers:
 - Flask routes
 - Input validation
 
-
-
 ## 🔐 Environment Variables
 
-The application uses environment variables for sensitive credentials.
+The application uses environment variables for sensitive credentials:
 
 ```text
-SERPAPI_KEY
-DATABASE_URL
-SMTP_HOST
-SMTP_PORT
-SMTP_USERNAME
-SMTP_PASSWORD
+SECRET_KEY       # Mandatory in production (64-character random hex string)
+DATABASE_URL     # Mandatory in production (PostgreSQL connection URI with SSL)
+SERPAPI_KEY      # Google Flights search API key
+SMTP_HOST        # SMTP host (e.g. smtp.gmail.com)
+SMTP_PORT        # SMTP port (e.g. 587)
+SMTP_USERNAME    # SMTP sender email address
+SMTP_PASSWORD    # SMTP app-specific password
 ```
 
-Secrets are never stored directly in the source code.
+Secrets are never stored directly in the source code. In production, missing or weak `SECRET_KEY` values immediately abort application startup.
 
 ## ⚙️ Automated Price Checking
 

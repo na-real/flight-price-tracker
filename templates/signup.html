@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Sign Up — Create Sovereign SkyTracker Account{% endblock %}
+{% block meta_description %}Establish your SkyTracker member account to activate personalized radar surveillance, route bookmarks, and multi-device fare synchronization.{% endblock %}
+{% block canonical_url %}https://skytrack-flights.onrender.com/signup{% endblock %}
+
+{% block content %}
+<section class="page-hero auth-card-wrapper">
+    <div class="auth-card">
+        <div style="text-align: center; margin-bottom: 20px;">
+            <span class="page-badge font-mono">MEMBERSHIP REGISTRATION</span>
+            <h1 class="auth-title">Establish Account</h1>
+            <p class="auth-subtitle">Create your personal sovereign profile for automated route alerts.</p>
+        </div>
+
+        {% if error %}
+        <div class="auth-error-banner" id="serverErrorBanner">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span>{{ error }}</span>
+        </div>
+        {% endif %}
+        <div id="jsErrorBanner" class="auth-error-banner" style="display: none;"></div>
+
+        <form method="POST" action="/signup" id="signupForm" autocomplete="on">
+            <div class="form-group">
+                <label for="name" class="form-label">FULL NAME</label>
+                <input type="text" id="name" name="name" class="form-input" placeholder="Lord / Lady / Dr. Surname" required minlength="2" autofocus autocomplete="name">
+            </div>
+
+            <div class="form-group">
+                <label for="email" class="form-label">EMAIL ADDRESS</label>
+                <input type="email" id="email" name="email" class="form-input" placeholder="sovereign@domain.com" required autocomplete="email">
+            </div>
+
+            <div class="form-group">
+                <label for="password" class="form-label">SECURITY KEYWORD (MIN. 8 CHARS)</label>
+                <input type="password" id="password" name="password" class="form-input" placeholder="••••••••" required minlength="8" autocomplete="new-password">
+            </div>
+
+            <div class="form-group">
+                <label for="confirm_password" class="form-label">CONFIRM SECURITY KEYWORD</label>
+                <input type="password" id="confirm_password" name="confirm_password" class="form-input" placeholder="••••••••" required minlength="8" autocomplete="new-password">
+            </div>
+
+            <div class="font-mono" style="font-size: 0.72rem; color: var(--text-tertiary); margin-bottom: 20px; line-height: 1.5;">
+                By registering, you agree to the <a href="/terms" class="auth-footer-link">Terms of Service</a> and <a href="/privacy" class="auth-footer-link">Privacy Manifesto</a>.
+            </div>
+
+            <button type="submit" id="signupSubmitBtn" class="primary-btn" style="width: 100%;">
+                <span id="signupSpinner" class="btn-loader" style="display: none;"></span>
+                <span id="signupBtnText">Initiate Sovereign Access</span>
+            </button>
+        </form>
+
+        <p class="auth-footer-text">
+            Already verified? <a href="/login" class="auth-footer-link">Authenticate Session</a>
+        </p>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('signupForm');
+    const pwd = document.getElementById('password');
+    const confPwd = document.getElementById('confirm_password');
+    const jsError = document.getElementById('jsErrorBanner');
+    const spinner = document.getElementById('signupSpinner');
+    const btnText = document.getElementById('signupBtnText');
+
+    if (form) {
+        form.addEventListener('submit', (e) => {
+            jsError.style.display = 'none';
+
+            if (pwd.value.length < 8) {
+                e.preventDefault();
+                jsError.textContent = 'Password must be at least 8 characters long.';
+                jsError.style.display = 'flex';
+                return;
+            }
+
+            if (pwd.value !== confPwd.value) {
+                e.preventDefault();
+                jsError.textContent = 'Passwords do not match.';
+                jsError.style.display = 'flex';
+                return;
+            }
+
+            if (spinner) spinner.style.display = 'inline-block';
+            if (btnText) btnText.textContent = 'Creating Account...';
+        });
+    }
+});
+</script>
+{% endblock %}

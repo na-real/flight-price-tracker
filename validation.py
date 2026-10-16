@@ -20,9 +20,47 @@ def validate_target_price(value):
     return target_price
 
 
+import re
+
+EMAIL_REGEX = re.compile(
+    r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+$"
+)
+IATA_REGEX = re.compile(r"^[A-Z]{3}$")
+
+
+def validate_email(value):
+    """
+    Validate email address format and prevent email header injection.
+    """
+    if not value or not isinstance(value, str):
+        raise ValueError("Email address is required.")
+
+    cleaned = value.strip()
+    if "\r" in cleaned or "\n" in cleaned:
+        raise ValueError("Invalid email address: newline characters detected.")
+
+    if len(cleaned) > 254:
+        raise ValueError("Email address cannot exceed 254 characters.")
+
+    if not EMAIL_REGEX.match(cleaned):
+        raise ValueError("Please provide a valid email address.")
+
+    return cleaned
+
+
 def clean_iata(value):
     """Clean an airport IATA code."""
     return str(value or "").strip().upper()
+
+
+def validate_iata_code(value, field_name="Airport code"):
+    """
+    Validate that an airport code is a valid 3-letter IATA code.
+    """
+    cleaned = clean_iata(value)
+    if not cleaned or not IATA_REGEX.match(cleaned):
+        raise ValueError(f"{field_name} must be a valid 3-letter IATA airport code (e.g. DEL, LHR).")
+    return cleaned
 
 
 def validate_date_iso(date_str, field_name="Date", allow_past=False):
