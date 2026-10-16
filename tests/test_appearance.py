@@ -28,6 +28,7 @@ def test_appearance_settings_page_route(client):
     assert 'data-theme="high-contrast"' in html
     assert 'data-theme="midnight"' in html
     assert 'data-theme="custom"' in html
+    assert 'data-theme="light"' in html
 
 
 def test_settings_redirect_route(client):
@@ -74,7 +75,7 @@ def test_appearance_preferences_api_get_default(client):
     assert response.status_code == 200
     data = response.get_json()
     assert data["status"] == "ok"
-    assert data["preferences"]["theme"] in ["signature", "dark", "monochrome", "high-contrast", "midnight", "custom"]
+    assert data["preferences"]["theme"] in ["signature", "dark", "monochrome", "high-contrast", "midnight", "custom", "light"]
     assert data["preferences"]["backdropEffect"] == "default"
 
 
@@ -103,6 +104,27 @@ def test_appearance_preferences_api_post_valid(client):
     assert get_data["preferences"]["backdropEffect"] == "ferrofluid"
 
 
+def test_appearance_preferences_api_post_light_theme(client):
+    """Verify saving light theme persists properly in session preferences."""
+    payload = {
+        "theme": "light",
+        "backdropEffect": "default",
+        "accentColor": "#DFC99E",
+        "reducedMotion": False
+    }
+    response = client.post("/api/appearance/preferences", json=payload)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["status"] == "ok"
+    assert data["preferences"]["theme"] == "light"
+
+    # Subsequent GET must return light theme
+    get_res = client.get("/api/appearance/preferences")
+    assert get_res.status_code == 200
+    get_data = get_res.get_json()
+    assert get_data["preferences"]["theme"] == "light"
+
+
 def test_appearance_preferences_api_post_sanitization(client):
     """Verify malicious or invalid inputs are safely sanitized."""
     payload = {
@@ -122,7 +144,7 @@ def test_appearance_preferences_api_post_sanitization(client):
 
 
 def test_css_themes_present_in_stylesheet(client):
-    """Verify all 6 themes exist in the stylesheet."""
+    """Verify all 7 themes exist in the stylesheet."""
     response = client.get("/static/style.css")
     assert response.status_code == 200
     css = response.get_data(as_text=True)
@@ -132,5 +154,31 @@ def test_css_themes_present_in_stylesheet(client):
     assert '[data-theme="high-contrast"]' in css
     assert '[data-theme="midnight"]' in css
     assert '[data-theme="custom"]' in css
+    assert '[data-theme="light"]' in css
     assert '.mobile-bottom-nav' in css
     assert '.dynamic-backdrop-canvas' in css
+
+
+def test_theme_toggle_button_on_all_shared_pages(client):
+    """Verify #themeToggle button exists on every page using shared navigation."""
+    pages = [
+        "/",
+        "/flights",
+        "/compare",
+        "/tracking",
+        "/about",
+        "/contact",
+        "/settings/appearance",
+        "/login",
+        "/signup",
+        "/privacy",
+        "/terms",
+    ]
+    for page in pages:
+        response = client.get(page)
+        assert response.status_code == 200, f"Page {page} failed to load (status {response.status_code})"
+        html = response.get_data(as_text=True)
+        assert 'id="themeToggle"' in html, f"Page {page} missing #themeToggle button"
+        assert 'class="theme-toggle-btn"' in html or 'theme-toggle-btn' in html, f"Page {page} missing theme-toggle-btn class"
+        assert 'sun-icon' in html, f"Page {page} missing sun-icon in theme toggle"
+        assert 'moon-icon' in html, f"Page {page} missing moon-icon in theme toggle"

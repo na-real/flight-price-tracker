@@ -6780,53 +6780,46 @@ initComparisonControls();
 ========================================================= */
 
 function initThemeSystem() {
+    if (window.SkyTrackerAppearance && typeof window.SkyTrackerAppearance.initNavbarToggle === "function") {
+        window.SkyTrackerAppearance.initNavbarToggle();
+        return;
+    }
+
     const themeToggleBtn = $("themeToggle");
-    const appearancePrefsRaw = localStorage.getItem("skytracker_appearance_prefs");
-    let activeTheme = "signature";
+    if (!themeToggleBtn || themeToggleBtn.dataset.themeBound === "true") return;
+    themeToggleBtn.dataset.themeBound = "true";
 
-    if (appearancePrefsRaw) {
-        try {
-            const p = JSON.parse(appearancePrefsRaw);
-            if (p && p.theme) activeTheme = p.theme;
-        } catch (e) {}
-    } else {
-        const storedLegacy = localStorage.getItem("skytrack_theme");
-        activeTheme = storedLegacy || "signature";
+    function updateLabels(theme) {
+        const isLight = theme === "light";
+        themeToggleBtn.setAttribute("aria-label", isLight ? "Switch to dark theme" : "Switch to light theme");
+        themeToggleBtn.setAttribute("title", isLight ? "Switch to dark theme" : "Switch to light theme");
     }
 
-    if (!document.documentElement.getAttribute("data-theme")) {
-        document.documentElement.setAttribute("data-theme", activeTheme);
-    }
+    const currentTheme = document.documentElement.getAttribute("data-theme") || localStorage.getItem("skytrack_theme") || "signature";
+    updateLabels(currentTheme);
 
-    if (themeToggleBtn) {
-        themeToggleBtn.setAttribute(
-            "aria-label",
-            `Appearance: ${activeTheme}`
-        );
-        themeToggleBtn.setAttribute(
-            "title",
-            `Appearance: ${activeTheme} (Click to toggle)`
-        );
-        themeToggleBtn.addEventListener("click", () => {
-            const current =
-                document.documentElement.getAttribute("data-theme") || "signature";
-            const nextTheme = (current === "signature" || current === "dark") ? "light" : "signature";
-            if (window.SkyTrackerAppearance && window.SkyTrackerAppearance.applyTheme) {
-                window.SkyTrackerAppearance.applyTheme(nextTheme);
-            } else {
-                document.documentElement.setAttribute("data-theme", nextTheme);
+    themeToggleBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const current = document.documentElement.getAttribute("data-theme") || "signature";
+        const nextTheme = (current === "light") ? "signature" : "light";
+        if (window.SkyTrackerAppearance && window.SkyTrackerAppearance.applyTheme) {
+            window.SkyTrackerAppearance.applyTheme(nextTheme);
+        } else {
+            document.documentElement.setAttribute("data-theme", nextTheme);
+            try {
                 localStorage.setItem("skytrack_theme", nextTheme);
-            }
-            themeToggleBtn.setAttribute(
-                "aria-label",
-                `Appearance: ${nextTheme}`
-            );
-            themeToggleBtn.setAttribute(
-                "title",
-                `Appearance: ${nextTheme} (Click to toggle)`
-            );
-        });
-    }
+            } catch (err) {}
+            updateLabels(nextTheme);
+        }
+    });
+
+    themeToggleBtn.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            themeToggleBtn.click();
+        }
+    });
 }
 
 initThemeSystem();

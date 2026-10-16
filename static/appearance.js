@@ -15,7 +15,7 @@
         reducedMotion: false
     };
 
-    const THEME_NAMES = ['signature', 'dark', 'monochrome', 'high-contrast', 'midnight', 'custom'];
+    const THEME_NAMES = ['signature', 'dark', 'monochrome', 'high-contrast', 'midnight', 'custom', 'light'];
     const ACCENT_PRESETS = [
         { name: 'Electric Blue', hex: '#00A8FF' },
         { name: 'Teal', hex: '#009688' },
@@ -148,6 +148,46 @@
 
         savePreferences({ theme: themeName });
         updateSettingsPageUI();
+        updateNavbarThemeToggle(themeName);
+    }
+
+    function updateNavbarThemeToggle(themeName) {
+        const current = themeName || document.documentElement.getAttribute('data-theme') || currentPrefs.theme || 'signature';
+        const isLight = current === 'light';
+        const toggleBtns = document.querySelectorAll('#themeToggle, .theme-toggle-btn');
+        toggleBtns.forEach(btn => {
+            if (isLight) {
+                btn.setAttribute('aria-label', 'Switch to dark theme');
+                btn.setAttribute('title', 'Switch to dark theme');
+            } else {
+                btn.setAttribute('aria-label', 'Switch to light theme');
+                btn.setAttribute('title', 'Switch to light theme');
+            }
+        });
+    }
+
+    function initNavbarToggle() {
+        const toggleBtns = document.querySelectorAll('#themeToggle, .theme-toggle-btn');
+        toggleBtns.forEach(btn => {
+            if (btn.dataset.themeBound === 'true') return;
+            btn.dataset.themeBound = 'true';
+
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const current = document.documentElement.getAttribute('data-theme') || currentPrefs.theme || 'signature';
+                const nextTheme = (current === 'light') ? 'signature' : 'light';
+                applyTheme(nextTheme);
+            });
+
+            btn.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    btn.click();
+                }
+            });
+        });
+        updateNavbarThemeToggle(currentPrefs.theme);
     }
 
     function applyAccentColor(hex) {
@@ -488,6 +528,7 @@
 
         initPWAManager();
         initMobileNav();
+        initNavbarToggle();
     }
 
     if (document.readyState === 'loading') {
@@ -502,6 +543,8 @@
         applyAccentColor,
         applyBackdrop,
         restoreDefaults,
+        initNavbarToggle,
+        updateNavbarThemeToggle,
         getPreferences: () => ({ ...currentPrefs }),
         THEME_NAMES,
         ACCENT_PRESETS

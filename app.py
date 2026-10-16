@@ -1425,7 +1425,7 @@ def service_worker():
 @app.route("/api/appearance/preferences", methods=["GET", "POST"])
 def api_appearance_preferences():
     """Get or save client appearance preferences."""
-    allowed_themes = ["signature", "dark", "monochrome", "high-contrast", "midnight", "custom"]
+    allowed_themes = ["signature", "dark", "monochrome", "high-contrast", "midnight", "custom", "light"]
     allowed_backdrops = ["default", "shape-waves", "aero-shards", "ferrofluid", "gradient-waves", "molten-metal"]
 
     if request.method == "POST":

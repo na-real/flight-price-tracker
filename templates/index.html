@@ -70,8 +70,9 @@
         (function() {
             try {
                 var p = JSON.parse(localStorage.getItem('skytracker_appearance_prefs') || '{}');
-                if (p.theme) {
-                    document.documentElement.setAttribute('data-theme', p.theme);
+                var savedTheme = p.theme || localStorage.getItem('skytrack_theme');
+                if (savedTheme) {
+                    document.documentElement.setAttribute('data-theme', savedTheme);
                 }
                 if (p.backdropEffect) {
                     document.documentElement.setAttribute('data-backdrop', p.backdropEffect);

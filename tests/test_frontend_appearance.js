@@ -30,8 +30,8 @@ const manifestContent = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 const swContent = fs.readFileSync(swJsPath, 'utf8');
 const styleCss = fs.readFileSync(styleCssPath, 'utf8');
 
-// 2. Validate 6 Visual Themes in appearance.html
-const requiredThemes = ['signature', 'dark', 'monochrome', 'high-contrast', 'midnight', 'custom'];
+// 2. Validate Visual Themes in appearance.html & style.css
+const requiredThemes = ['signature', 'dark', 'monochrome', 'high-contrast', 'midnight', 'custom', 'light'];
 requiredThemes.forEach(theme => {
     assert(
         appearanceHtml.includes(`data-theme="${theme}"`),
@@ -42,7 +42,7 @@ requiredThemes.forEach(theme => {
         `style.css must define CSS tokens for [data-theme="${theme}"]`
     );
 });
-console.log('✓ 6 Visual Themes verified in template & CSS');
+console.log('✓ Visual Themes (including light mode) verified in template & CSS');
 
 // 3. Validate 6 Backdrop Effects in appearance.html
 const requiredBackdrops = ['default', 'shape-waves', 'aero-shards', 'ferrofluid', 'gradient-waves', 'molten-metal'];
@@ -64,7 +64,7 @@ requiredPresets.forEach(hex => {
 });
 console.log('✓ 6 Color Swatches verified in template');
 
-// 5. Validate Base & Index Template Consistency
+// 5. Validate Base & Index Template Consistency & Moon Button Toggle
 [baseHtml, indexHtml].forEach((tmpl, idx) => {
     const name = idx === 0 ? 'base.html' : 'index.html';
     assert(tmpl.includes('id="dynamicBackdropCanvas"'), `${name} must include #dynamicBackdropCanvas`);
@@ -74,8 +74,27 @@ console.log('✓ 6 Color Swatches verified in template');
     assert(tmpl.includes('rel="manifest"'), `${name} must link to manifest`);
     assert(tmpl.includes('/static/backdrops.js'), `${name} must load backdrops.js`);
     assert(tmpl.includes('/static/appearance.js'), `${name} must load appearance.js`);
+    // Moon Button Navbar Toggle Check
+    assert(tmpl.includes('id="themeToggle"'), `${name} must include #themeToggle button`);
+    assert(tmpl.includes('class="theme-toggle-btn"'), `${name} must include theme-toggle-btn class`);
+    assert(tmpl.includes('sun-icon'), `${name} must include sun-icon`);
+    assert(tmpl.includes('moon-icon'), `${name} must include moon-icon`);
 });
-console.log('✓ base.html and index.html integration verified');
+console.log('✓ base.html and index.html integration & #themeToggle verified');
+
+// 5b. Validate Theme Toggle CSS Icon Logic
+assert(styleCss.includes('.sun-icon { display: none; }'), 'style.css must hide sun icon by default');
+assert(styleCss.includes('.moon-icon { display: block; }'), 'style.css must show moon icon by default');
+assert(styleCss.includes('[data-theme="light"] .sun-icon { display: block; }'), 'style.css must show sun icon in light mode');
+assert(styleCss.includes('[data-theme="light"] .moon-icon { display: none; }'), 'style.css must hide moon icon in light mode');
+console.log('✓ Theme toggle icon CSS rules verified');
+
+// 5c. Validate appearance.js Theme Array & Exports
+const appearanceJs = fs.readFileSync(appearanceJsPath, 'utf8');
+assert(appearanceJs.includes("'light'"), "appearance.js must include 'light' in THEME_NAMES");
+assert(appearanceJs.includes("updateNavbarThemeToggle"), "appearance.js must include updateNavbarThemeToggle");
+assert(appearanceJs.includes("initNavbarToggle"), "appearance.js must include initNavbarToggle");
+console.log('✓ appearance.js THEME_NAMES and navbar toggle integration verified');
 
 // 6. Validate PWA Manifest & Service Worker Safety
 assert.strictEqual(manifestContent.short_name, 'SkyTracker');

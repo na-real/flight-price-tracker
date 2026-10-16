@@ -6394,6 +6394,283 @@ body.luxury-experience {
     --border-hover: var(--border-subtle);
 }
 
+/* Theme 7: Warm Alabaster (Quiet Luxury Light Mode) */
+[data-theme="light"] {
+    --bg-void: #f4f3ee;
+    --bg-base: #f7f6f1;
+    --bg-surface: rgba(255, 255, 255, 0.88);
+    --bg-surface-elevated: rgba(255, 255, 255, 0.96);
+    --bg-surface-subtle: rgba(0, 0, 0, 0.03);
+    --bg-glass: rgba(255, 255, 255, 0.85);
+    --bg-card: rgba(255, 255, 255, 0.92);
+
+    --text-primary: #121620;
+    --text-secondary: #566175;
+    --text-tertiary: #8490a6;
+    --text-inverse: #ffffff;
+
+    --accent-gold: #9e7a32;
+    --accent-gold-hover: #b08a3d;
+    --accent-gold-dim: rgba(158, 122, 50, 0.09);
+    --accent-gold-border: rgba(158, 122, 50, 0.3);
+    --accent-gold-glow: rgba(158, 122, 50, 0.15);
+    --accent-blue: #1d4ed8;
+    --accent-blue-glow: rgba(29, 78, 216, 0.12);
+
+    --border-hairline: rgba(0, 0, 0, 0.08);
+    --border-subtle: rgba(0, 0, 0, 0.14);
+    --border-accent: rgba(158, 122, 50, 0.35);
+
+    --accent: var(--accent-gold);
+    --accent-hover: var(--accent-gold-hover);
+    --accent-focus: var(--accent-gold);
+    --accent-soft: var(--accent-gold-dim);
+    --accent-subtle: rgba(158, 122, 50, 0.08);
+    --accent-gradient: linear-gradient(135deg, #b08a3d 0%, #9e7a32 100%);
+    --bg-elevated: var(--bg-surface-elevated);
+    --bg-surface-hover: rgba(240, 238, 230, 0.9);
+    --bg-surface-inset: rgba(230, 227, 218, 0.7);
+    --bg-surface-solid: #ffffff;
+    --border: var(--border-hairline);
+    --border-hover: var(--border-subtle);
+    --border-strong: var(--border-accent);
+
+    --shadow-spatial-lg: 0 24px 60px -8px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    --shadow-spatial-md: 0 12px 30px -4px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    --shadow-card: 0 8px 24px -2px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+/* ==========================================================================
+   WARM ALABASTER LIGHT THEME COMPONENT STYLING SYSTEM
+   ========================================================================== */
+[data-theme="light"] body {
+    background-color: var(--bg-void);
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .cosmic-vignette {
+    background: radial-gradient(circle at 50% 45%, transparent 35%, var(--bg-void) 92%);
+}
+
+[data-theme="light"] .aurora-glow.glow-1 {
+    background: radial-gradient(circle, rgba(158, 122, 50, 0.12) 0%, transparent 70%);
+}
+
+[data-theme="light"] .aurora-glow.glow-2 {
+    background: radial-gradient(circle, rgba(100, 140, 200, 0.1) 0%, transparent 70%);
+}
+
+[data-theme="light"] .fine-grid-overlay {
+    background-image:
+        linear-gradient(to right, rgba(0, 0, 0, 0.025) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0, 0, 0, 0.025) 1px, transparent 1px);
+}
+
+[data-theme="light"] .hero-scene-3d {
+    opacity: 0.75;
+}
+
+[data-theme="light"] .navbar.scrolled {
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: var(--glass-blur);
+    border-color: rgba(0, 0, 0, 0.08);
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+}
+
+[data-theme="light"] .theme-toggle-btn {
+    background: rgba(0, 0, 0, 0.04);
+    border-color: rgba(0, 0, 0, 0.1);
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .theme-toggle-btn:hover {
+    border-color: var(--accent-gold);
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .search-console-card,
+[data-theme="light"] .compare-search-card {
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 20px 50px -10px rgba(15, 23, 42, 0.07);
+}
+
+[data-theme="light"] .airport-input,
+[data-theme="light"] .date-input,
+[data-theme="light"] .form-input,
+[data-theme="light"] .cabin-select,
+[data-theme="light"] .filter-select {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .airport-input::placeholder,
+[data-theme="light"] .form-input::placeholder {
+    color: #8490a6;
+}
+
+[data-theme="light"] .passengers-summary-btn,
+[data-theme="light"] .swap-airports-btn {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .passenger-dropdown-panel,
+[data-theme="light"] .autocomplete-dropdown,
+[data-theme="light"] .airport-suggestions {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.1);
+}
+
+[data-theme="light"] .autocomplete-item:hover,
+[data-theme="light"] .autocomplete-item.selected,
+[data-theme="light"] .suggestion-item:hover,
+[data-theme="light"] .airport-option:hover {
+    background: rgba(158, 122, 50, 0.08);
+}
+
+[data-theme="light"] .trip-tab-btn {
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .trip-tab-btn.active {
+    background: #ffffff;
+    color: var(--text-primary);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+[data-theme="light"] .glass-panel,
+[data-theme="light"] .flight-card,
+[data-theme="light"] .compare-card,
+[data-theme="light"] .stat-card,
+[data-theme="light"] .feature-card,
+[data-theme="light"] .editorial-destination-card,
+[data-theme="light"] .empty-state-card,
+[data-theme="light"] .modal-card,
+[data-theme="light"] .auth-card,
+[data-theme="light"] .contact-card {
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 10px 30px -4px rgba(15, 23, 42, 0.05);
+}
+
+[data-theme="light"] .flight-card:hover,
+[data-theme="light"] .compare-card:hover {
+    box-shadow: 0 16px 40px -4px rgba(15, 23, 42, 0.09);
+    border-color: rgba(158, 122, 50, 0.35);
+}
+
+[data-theme="light"] .comparison-table,
+[data-theme="light"] .flights-table,
+[data-theme="light"] .table-luxury {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] th {
+    background: rgba(0, 0, 0, 0.02);
+    color: var(--text-secondary);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] td {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    color: var(--text-primary);
+}
+
+[data-theme="light"] tr:hover td {
+    background: rgba(158, 122, 50, 0.04);
+}
+
+[data-theme="light"] .filter-controls-bar {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .filter-pill {
+    background: rgba(0, 0, 0, 0.04);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .filter-pill.active {
+    background: var(--accent-gold);
+    color: #ffffff;
+    border-color: var(--accent-gold);
+}
+
+[data-theme="light"] .luxury-footer,
+[data-theme="light"] .footer {
+    background: #f0eee6;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .footer-link,
+[data-theme="light"] .nav-link {
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .footer-link:hover,
+[data-theme="light"] .nav-link:hover,
+[data-theme="light"] .nav-link.active {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .mobile-bottom-nav {
+    background: rgba(247, 246, 242, 0.95);
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .mobile-more-backdrop {
+    background: rgba(15, 23, 42, 0.35);
+}
+
+[data-theme="light"] .mobile-more-sheet {
+    background: #ffffff;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 -10px 40px rgba(15, 23, 42, 0.1);
+}
+
+[data-theme="light"] .sheet-handle {
+    background: rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .sheet-nav-link {
+    background: rgba(0, 0, 0, 0.03);
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .sheet-nav-link:hover,
+[data-theme="light"] .sheet-nav-link.active {
+    background: rgba(158, 122, 50, 0.1);
+    color: var(--accent-gold);
+}
+
+[data-theme="light"] .modal-backdrop {
+    background: rgba(15, 23, 42, 0.45);
+}
+
+[data-theme="light"] .page-badge {
+    background: rgba(0, 0, 0, 0.04);
+    color: var(--text-secondary);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .settings-container .setting-card,
+[data-theme="light"] .settings-container .theme-card {
+    background: rgba(255, 255, 255, 0.85);
+    border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .settings-container .theme-card.active,
+[data-theme="light"] .settings-container .setting-card:hover {
+    border-color: var(--accent-gold);
+}
+
 /* ==========================================================================
    DYNAMIC BACKDROP CANVAS
    ========================================================================== */
@@ -6675,6 +6952,34 @@ body.luxury-experience {
     background: #060912;
     border: 1px solid var(--accent-gold-border);
     color: var(--accent-gold);
+}
+
+.preview-light {
+    background: #fbfaf6;
+    border: 1px solid rgba(158, 122, 50, 0.3);
+    color: #9e7a32;
+}
+
+.preview-light .mini-navbar {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.preview-light .mini-pill {
+    background: rgba(0, 0, 0, 0.15);
+}
+
+.preview-light .mini-card {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.preview-light .mini-line {
+    background: rgba(0, 0, 0, 0.15);
+}
+
+.preview-light .mini-line.warm-gold,
+.preview-light .mini-btn.warm-gold {
+    background: #9e7a32;
 }
 
 .theme-card-content {
