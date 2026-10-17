@@ -13,6 +13,9 @@ from services.api_guardian import (
     guardian,
     PROVIDER_SERPAPI,
     CALLER_USER_SEARCH,
+    STATE_OPEN,
+    STATE_QUOTA_EXHAUSTED,
+    is_quota_exhausted_error,
     get_guardian_config,
 )
 
@@ -25,16 +28,21 @@ class SerpApiFlightsProvider(BaseFlightProvider):
 
     def __init__(self):
         super().__init__(
-            provider_id="google_flights",
-            provider_name="Google Flights",
+            provider_id="serpapi",
+            provider_name="SerpAPI",
             provider_type="metasearch"
         )
         self.last_status = "active"
-        self.last_message = "Ready to search Google Flights via SerpAPI"
+        self.last_message = "Ready to search flights via SerpAPI"
         self.last_offer_count = 0
 
     def is_configured(self) -> bool:
         return bool(os.getenv("SERPAPI_KEY"))
+
+    def is_quota_exhausted(self) -> bool:
+        """Check whether SerpAPI is currently classified as quota-exhausted."""
+        state, _ = guardian.get_circuit_state(self.provider_id)
+        return state in (STATE_OPEN, STATE_QUOTA_EXHAUSTED)
 
     def get_status(self) -> ProviderStatus:
         if not self.is_configured():
@@ -46,6 +54,19 @@ class SerpApiFlightsProvider(BaseFlightProvider):
                 is_live=False,
                 message="SERPAPI_KEY is not configured in .env",
                 offers_count=self.last_offer_count,
+            )
+
+        if self.is_quota_exhausted():
+            _, cool = guardian.get_circuit_state(self.provider_id)
+            cool_msg = f" (cooldown until {cool})" if cool else " (reset time unknown)"
+            return ProviderStatus(
+                provider_id=self.provider_id,
+                provider_name=self.provider_name,
+                provider_type=self.provider_type,
+                status="quota_exhausted",
+                is_live=False,
+                message=f"SerpAPI quota exhausted{cool_msg}",
+                offers_count=0,
             )
 
         return ProviderStatus(
@@ -76,6 +97,11 @@ class SerpApiFlightsProvider(BaseFlightProvider):
             self.last_message = "SERPAPI_KEY not configured"
             return []
 
+        if self.is_quota_exhausted():
+            self.last_status = "rate_limited"
+            self.last_message = "SerpAPI quota exhausted. Upstream search suppressed."
+            return []
+
         api_key = os.getenv("SERPAPI_KEY")
         params = {
             "engine": "google_flights",
@@ -104,8 +130,8 @@ class SerpApiFlightsProvider(BaseFlightProvider):
                 response = requests.get(SERPAPI_URL, params=p, timeout=timeout)
                 data = response.json() if response.content else {}
 
-                if response.status_code == 429 or "search limit reached" in str(data.get("error", "")).lower():
-                    err = requests.exceptions.HTTPError("SerpAPI search limit reached (HTTP 429)", response=response)
+                if response.status_code == 429 or is_quota_exhausted_error(response.status_code, str(data.get("error", ""))):
+                    err = requests.exceptions.HTTPError(f"SerpAPI quota exhausted: {data.get('error') or 'Search limit reached (HTTP 429)'}", response=response)
                     setattr(err, "status_code", 429)
                     raise err
 
@@ -130,7 +156,7 @@ class SerpApiFlightsProvider(BaseFlightProvider):
             )
 
             if guardian_resp.status in ("blocked_budget", "circuit_open"):
-                self.last_status = "rate_limited"
+                self.last_status = "quota_exhausted" if guardian_resp.status == "circuit_open" else "rate_limited"
                 self.last_message = guardian_resp.error or "SerpAPI provider temporarily blocked by API Guardian"
                 return []
 
@@ -169,7 +195,7 @@ class SerpApiFlightsProvider(BaseFlightProvider):
                     base_offer = FlightOffer(
                         offer_id="",
                         provider_id=self.provider_id,
-                        provider_name="Google Flights",
+                        provider_name=self.provider_name,
                         provider_type=self.provider_type,
                         airline=airline,
                         flight_number=flight_no,
@@ -187,7 +213,7 @@ class SerpApiFlightsProvider(BaseFlightProvider):
                         is_live=is_live_flag,
                         is_estimated=False,
                         data_status=data_status_flag,
-                        source=f"Google Flights via SerpAPI{source_suffix}"
+                        source=f"SerpAPI{source_suffix}"
                     )
                     offers.append(base_offer)
 
@@ -225,7 +251,7 @@ class SerpApiFlightsProvider(BaseFlightProvider):
 
             self.last_status = "active"
             cached_note = " (cached)" if not is_live_flag else ""
-            self.last_message = f"Retrieved {len(offers)} offers from Google Flights{cached_note}"
+            self.last_message = f"Retrieved {len(offers)} offers from SerpAPI{cached_note}"
             self.last_offer_count = len(offers)
 
         except requests.RequestException as exc:

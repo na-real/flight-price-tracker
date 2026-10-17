@@ -21,10 +21,68 @@ let latestSearch = null;
 
 
 let allFlightResults = [];
-
-
-
+let currentTrackingFlight = null;
 let airportCache = {};
+
+function deduplicateFlights(flights) {
+    if (!Array.isArray(flights)) return [];
+    const seen = new Map();
+    for (const flight of flights) {
+        if (!flight) continue;
+        const dep = String(flight.departure_airport || "").trim().toUpperCase();
+        const arr = String(flight.arrival_airport || "").trim().toUpperCase();
+        const airline = String(flight.airline || "").trim().toUpperCase();
+        const fnum = String(flight.flight_number || (flight.segments?.[0]?.flight_number) || "").trim().toUpperCase();
+        const dtime = String(flight.departure_time || "").trim();
+        const atime = String(flight.arrival_time || "").trim();
+        const stops = Number(flight.stops) || 0;
+        const tripType = String(flight.trip_type || "").trim().toLowerCase();
+
+        let segKey = "";
+        if (Array.isArray(flight.segments) && flight.segments.length > 0) {
+            segKey = flight.segments.map(s => `${s.flight_number || ''}:${s.departure_time || ''}`).join(",");
+        }
+        if (Array.isArray(flight.legs) && flight.legs.length > 0) {
+            segKey += flight.legs.map(l => `${l.departure || l.departure_airport || ''}:${l.arrival || l.arrival_airport || ''}:${l.flight_number || ''}:${l.departure_time || ''}`).join(",");
+        }
+        let retKey = "";
+        if (flight.return_departure_time || flight.return_flight_number) {
+            retKey = `${flight.return_departure_time || ''}:${flight.return_arrival_time || ''}:${flight.return_flight_number || ''}`;
+        }
+
+        const scheduleKey = `${dep}_${arr}_${airline}_${fnum}_${dtime}_${atime}_${stops}_${tripType}_${segKey}_${retKey}`;
+
+        if (seen.has(scheduleKey)) {
+            const existing = seen.get(scheduleKey);
+            const existingOffers = existing.comparison_offers || [];
+            const incomingOffers = flight.comparison_offers || [];
+            const seenVendors = new Set(existingOffers.map(o => String(o.vendor || o.provider || o.agent_name || o.provider_name || '').toLowerCase()));
+            for (const offer of incomingOffers) {
+                const vKey = String(offer.vendor || offer.provider || offer.agent_name || offer.provider_name || '').toLowerCase();
+                if (!seenVendors.has(vKey)) {
+                    seenVendors.add(vKey);
+                    existingOffers.push(offer);
+                }
+            }
+            existing.comparison_offers = existingOffers;
+            const existingPrice = Number(existing.price);
+            const incomingPrice = Number(flight.price);
+            if (!isNaN(incomingPrice) && incomingPrice > 0) {
+                if (isNaN(existingPrice) || incomingPrice < existingPrice) {
+                    existing.price = incomingPrice;
+                    if (flight.booking_url) existing.booking_url = flight.booking_url;
+                }
+            }
+        } else {
+            const copy = { ...flight };
+            if (!Array.isArray(copy.comparison_offers)) {
+                copy.comparison_offers = [];
+            }
+            seen.set(scheduleKey, copy);
+        }
+    }
+    return Array.from(seen.values());
+}
 
 /* =========================================================
    TRACKED FLIGHTS AUTHORIZATION TOKENS (IDOR MITIGATION)
@@ -294,6 +352,16 @@ function setupAirportAutocomplete(inputId, suggestionsId) {
             return;
         }
 
+        // Show immediate loading state while typing / fetching
+        suggestions.innerHTML = `
+            <div class="airport-loading-state font-mono" role="status" style="padding: 12px 16px; font-size: 0.8rem; color: var(--text-tertiary); display: flex; align-items: center; gap: 8px;">
+                <span class="btn-loader" style="width: 14px; height: 14px; display: inline-block;"></span>
+                <span>Searching airport database...</span>
+            </div>
+        `;
+        suggestions.style.display = "block";
+        suggestions.classList.add("active");
+
         timer = setTimeout(async () => {
             try {
                 const response = await fetch(`/api/airports?q=${encodeURIComponent(query)}`);
@@ -306,7 +374,7 @@ function setupAirportAutocomplete(inputId, suggestionsId) {
 
                 if (!airports || !airports.length) {
                     suggestions.innerHTML = `
-                        <div class="airport-no-result" role="status">
+                        <div class="airport-no-result font-mono" role="status" style="padding: 12px 16px; font-size: 0.82rem; color: var(--text-tertiary);">
                             No matching airports found
                         </div>
                     `;
@@ -355,14 +423,22 @@ function setupAirportAutocomplete(inputId, suggestionsId) {
             } catch (error) {
                 console.error("Airport autocomplete error:", error);
                 suggestions.innerHTML = `
-                    <div class="airport-no-result">
-                        Could not load airports
+                    <div class="airport-error-state font-mono" role="status" style="padding: 12px 16px; font-size: 0.82rem; color: #f87171;">
+                        Could not load airport suggestions. Please check network.
                     </div>
                 `;
                 suggestions.style.display = "block";
                 suggestions.classList.add("active");
             }
         }, 200);
+    });
+
+    // Reopen suggestions if field has valid query when focused
+    input.addEventListener("focus", () => {
+        const query = input.value.trim();
+        if (query.length >= 2 && (!suggestions.children.length || suggestions.style.display === "none")) {
+            input.dispatchEvent(new Event("input"));
+        }
     });
 
     // Keyboard accessibility: ArrowDown, ArrowUp, Enter, Escape
@@ -455,22 +531,31 @@ async function resolveAirportInput(inputEl, fieldLabel) {
         return { iata: code, city: "", name: "" };
     }
 
-    // 5. Look up via API
+    // 5. Look up via API with matching verification (never silently substitute)
     try {
         const resp = await fetch(`/api/airports?q=${encodeURIComponent(raw)}`);
         if (resp.ok) {
             const list = await resp.json();
             if (Array.isArray(list) && list.length > 0) {
-                const best = list[0];
-                const code = (best.iata || best.iata_code || "").toUpperCase();
-                if (code && code.length === 3) {
-                    const name = best.name || best.airport_name || "";
-                    const city = best.city || best.municipality || "";
-                    inputEl.dataset.iata = code;
-                    inputEl.dataset.city = city;
-                    inputEl.dataset.name = name;
-                    inputEl.value = name && city ? `${name} — ${city} (${code})` : (city ? `${city} (${code})` : `${name} (${code})`);
-                    return { iata: code, city, name };
+                const queryLower = raw.toLowerCase();
+                const matched = list.find(a => {
+                    const c = (a.iata || a.iata_code || "").toLowerCase();
+                    const ci = (a.city || a.municipality || "").toLowerCase();
+                    const nm = (a.name || a.airport_name || "").toLowerCase();
+                    return c === queryLower || ci === queryLower || nm === queryLower || ci.startsWith(queryLower) || nm.startsWith(queryLower);
+                }) || (list.length === 1 ? list[0] : null);
+
+                if (matched) {
+                    const code = (matched.iata || matched.iata_code || "").toUpperCase();
+                    if (code && code.length === 3) {
+                        const name = matched.name || matched.airport_name || "";
+                        const city = matched.city || matched.municipality || "";
+                        inputEl.dataset.iata = code;
+                        inputEl.dataset.city = city;
+                        inputEl.dataset.name = name;
+                        inputEl.value = name && city ? `${name} — ${city} (${code})` : (city ? `${city} (${code})` : `${name} (${code})`);
+                        return { iata: code, city, name };
+                    }
                 }
             }
         }
@@ -613,9 +698,20 @@ function initTripTypeSelector() {
     const multiContainer = $("multiCityContainer") || $("multiCityFields");
     const returnFieldGroup = $("returnDateFieldGroup") || $("returnDateWrap");
     const returnInput = $("return_date");
+    const tripTypeInput = $("tripTypeInput");
 
     function setTripType(type) {
         currentTripType = type;
+        if (tripTypeInput) {
+            tripTypeInput.value = type;
+        }
+
+        // Clear stale validation state when switching tabs
+        clearFormErrors();
+        if (returnInput) {
+            returnInput.classList.remove("field-error");
+        }
+
         if (roundBtn) roundBtn.classList.toggle("active", type === "round_trip");
         if (oneWayBtn) oneWayBtn.classList.toggle("active", type === "one_way");
         if (multiCityBtn) multiCityBtn.classList.toggle("active", type === "multi_city");
@@ -637,7 +733,10 @@ function initTripTypeSelector() {
             if (stdInputs) stdInputs.style.display = "none";
             if (multiContainer) multiContainer.style.display = "block";
             if (returnFieldGroup) returnFieldGroup.style.display = "none";
-            if (returnInput) returnInput.required = false;
+            if (returnInput) {
+                returnInput.required = false;
+                returnInput.value = "";
+            }
             if (depInput) depInput.required = false;
             if (arrInput) arrInput.required = false;
             if (outDateInput) outDateInput.required = false;
@@ -676,6 +775,22 @@ function initTripTypeSelector() {
             else if (dt === "multi-city") setTripType("multi_city");
         });
     });
+
+    // Detect initial trip type from DOM (e.g. flights.html has one-way active by default, index.html has round-trip)
+    const activeTabEl = document.querySelector(".trip-tab-btn.active, .segment-btn.active, [data-trip].active, [data-type].active");
+    let initialType = "round_trip";
+    if (activeTabEl) {
+        const dt = activeTabEl.dataset.type || activeTabEl.dataset.trip;
+        if (dt === "one-way" || dt === "one_way") initialType = "one_way";
+        else if (dt === "multi-city" || dt === "multi_city") initialType = "multi_city";
+        else if (dt === "round-trip" || dt === "round_trip") initialType = "round_trip";
+    } else if (tripTypeInput && tripTypeInput.value) {
+        initialType = tripTypeInput.value;
+    } else if ($("returnDateWrap") && ($("returnDateWrap").style.display === "none" || !$("returnDateFieldGroup"))) {
+        initialType = "one_way";
+    }
+    setTripType(initialType);
+    window.setTripType = setTripType;
 }
 
 function initPassengerSelector() {
@@ -870,26 +985,59 @@ function initDatePickers() {
                     retDate.value = depDate.value;
                 }
             }
+            if (typeof markResultsAsStale === "function") markResultsAsStale();
+        });
+        depDate.addEventListener("input", () => {
+            if (typeof markResultsAsStale === "function") markResultsAsStale();
         });
     }
 
     if (retDate) {
         retDate.min = depDate && depDate.value ? depDate.value : today;
+        retDate.addEventListener("change", () => {
+            if (typeof markResultsAsStale === "function") markResultsAsStale();
+        });
+        retDate.addEventListener("input", () => {
+            if (typeof markResultsAsStale === "function") markResultsAsStale();
+        });
+    }
+
+    // Ensure calendar icon clicks trigger native/supported date picker on all date fields (including dynamic multi-city legs)
+    document.querySelectorAll(".date-input-wrapper .input-icon").forEach(icon => {
+        icon.style.cursor = "pointer";
+        icon.setAttribute("role", "button");
+        icon.setAttribute("aria-label", "Open calendar date picker");
+    });
+    if (!document.__skytrackerCalendarDelegated) {
+        document.__skytrackerCalendarDelegated = true;
+        document.addEventListener("click", (e) => {
+            const icon = e.target.closest(".date-input-wrapper .input-icon, .input-with-icon .field-icon");
+            if (!icon) return;
+            const wrap = icon.closest(".date-input-wrapper, .field-group, .input-with-icon");
+            const dateInput = wrap ? wrap.querySelector("input[type='date']") : null;
+            if (dateInput) {
+                e.preventDefault();
+                dateInput.focus();
+                if (typeof dateInput.showPicker === "function") {
+                    try { dateInput.showPicker(); } catch (err) {}
+                }
+            }
+        });
     }
 }
 
 function renderMultiCityLegs() {
-    const list = $("multiCityLegsList");
-    const countBadge = $("multiCityLegCountBadge");
-    const addBtn = $("btnAddLeg");
+    const list = $("multiCityLegsList") || $("multiCityLegsContainer");
+    const countBadges = document.querySelectorAll("#multiCityLegCountBadge, .multi-city-count-badge");
+    const addBtns = document.querySelectorAll("#btnAddLeg, #addLegBtn");
     if (!list) return;
 
-    if (countBadge) {
-        countBadge.textContent = `${multiCityLegs.length} of 5 legs`;
-    }
-    if (addBtn) {
-        addBtn.disabled = multiCityLegs.length >= 5;
-    }
+    countBadges.forEach(badge => {
+        badge.textContent = `${multiCityLegs.length} of 5 legs`;
+    });
+    addBtns.forEach(btn => {
+        btn.disabled = multiCityLegs.length >= 5;
+    });
 
     const todayStr = new Date().toISOString().split("T")[0];
 
@@ -913,6 +1061,7 @@ function renderMultiCityLegs() {
                         </svg>
                     </button>
                 </div>
+                <div class="leg-error-banner" id="mc_leg_error_${leg.id}" style="display:none;" role="alert"></div>
                 <div class="leg-grid">
                     <div class="field-group">
                         <label for="mc_dep_${leg.id}" class="field-label">From</label>
@@ -920,7 +1069,7 @@ function renderMultiCityLegs() {
                             <span class="input-icon">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"></path><circle cx="12" cy="10" r="3"></circle></svg>
                             </span>
-                            <input id="mc_dep_${leg.id}" type="text" placeholder="Departure airport" autocomplete="off" value="${escapeHtml(leg.depVal || '')}" data-iata="${escapeHtml(leg.depIata || '')}">
+                            <input id="mc_dep_${leg.id}" type="text" placeholder="Enter origin city or airport" autocomplete="off" value="${escapeHtml(leg.depVal || '')}" data-iata="${escapeHtml(leg.depIata || '')}">
                             <div id="mc_dep_sugg_${leg.id}" class="airport-suggestions" role="listbox"></div>
                         </div>
                     </div>
@@ -937,7 +1086,7 @@ function renderMultiCityLegs() {
                             <span class="input-icon">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="12 8 8 12 12 16 12 8"></polygon><line x1="16" y1="12" x2="8" y2="12"></line></svg>
                             </span>
-                            <input id="mc_arr_${leg.id}" type="text" placeholder="Arrival airport" autocomplete="off" value="${escapeHtml(leg.arrVal || '')}" data-iata="${escapeHtml(leg.arrIata || '')}">
+                            <input id="mc_arr_${leg.id}" type="text" placeholder="Enter destination city or airport" autocomplete="off" value="${escapeHtml(leg.arrVal || '')}" data-iata="${escapeHtml(leg.arrIata || '')}">
                             <div id="mc_arr_sugg_${leg.id}" class="airport-suggestions" role="listbox"></div>
                         </div>
                     </div>
@@ -948,7 +1097,7 @@ function renderMultiCityLegs() {
                             <span class="input-icon">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
                             </span>
-                            <input id="mc_date_${leg.id}" type="date" value="${escapeHtml(leg.date || '')}" min="${minDate}">
+                            <input id="mc_date_${leg.id}" type="date" placeholder="Select departure date" value="${escapeHtml(leg.date || '')}" min="${minDate}">
                         </div>
                     </div>
                 </div>
@@ -968,17 +1117,29 @@ function renderMultiCityLegs() {
             depInp.addEventListener("input", () => {
                 leg.depVal = depInp.value;
                 leg.depIata = depInp.dataset.iata || "";
+                depInp.classList.remove("field-error");
+                const err = $(`mc_leg_error_${leg.id}`);
+                if (err) err.style.display = "none";
+                if (typeof markResultsAsStale === "function") markResultsAsStale();
             });
         }
         if (arrInp) {
             arrInp.addEventListener("input", () => {
                 leg.arrVal = arrInp.value;
                 leg.arrIata = arrInp.dataset.iata || "";
+                arrInp.classList.remove("field-error");
+                const err = $(`mc_leg_error_${leg.id}`);
+                if (err) err.style.display = "none";
+                if (typeof markResultsAsStale === "function") markResultsAsStale();
             });
         }
         if (dateInp) {
             dateInp.addEventListener("change", () => {
                 leg.date = dateInp.value;
+                dateInp.classList.remove("field-error");
+                const err = $(`mc_leg_error_${leg.id}`);
+                if (err) err.style.display = "none";
+                if (typeof markResultsAsStale === "function") markResultsAsStale();
                 for (let next = index + 1; next < multiCityLegs.length; next++) {
                     const nextDateEl = $(`mc_date_${multiCityLegs[next].id}`);
                     if (nextDateEl) {
@@ -1042,14 +1203,13 @@ function addMultiCityLeg() {
     syncMultiCityStateFromDOM();
 
     legCounter++;
-    const prevLeg = multiCityLegs[multiCityLegs.length - 1];
     const newLeg = {
         id: legCounter,
-        depIata: prevLeg ? prevLeg.arrIata : "",
-        depVal: prevLeg ? prevLeg.arrVal : "",
+        depIata: "",
+        depVal: "",
         arrIata: "",
         arrVal: "",
-        date: prevLeg && prevLeg.date ? prevLeg.date : ""
+        date: ""
     };
     multiCityLegs.push(newLeg);
     renderMultiCityLegs();
@@ -1098,13 +1258,14 @@ function swapMultiCityLeg(index, swapBtn) {
             svg.style.transform = `rotate(${rot}deg)`;
         }
     }
+    if (typeof markResultsAsStale === "function") markResultsAsStale();
 }
 
 function initMultiCity() {
-    const addBtn = $("btnAddLeg");
-    if (addBtn) {
-        addBtn.addEventListener("click", addMultiCityLeg);
-    }
+    const addBtns = document.querySelectorAll("#btnAddLeg, #addLegBtn");
+    addBtns.forEach(btn => {
+        btn.addEventListener("click", addMultiCityLeg);
+    });
     renderMultiCityLegs();
 }
 
@@ -1113,6 +1274,7 @@ initTripTypeSelector();
 initPassengerSelector();
 initDatePickers();
 initMultiCity();
+if (typeof attachStaleDetectionListeners === "function") attachStaleDetectionListeners();
 
 
 
@@ -1142,8 +1304,159 @@ initMultiCity();
 
 
 let isSearching = false;
+let activeSearchRequestId = 0;
 
-function showFormError(msg, targetEl) {
+function clearFlightResults(options = {}) {
+    const { clearInputs = false } = options;
+    allFlightResults = [];
+    latestSearch = null;
+    currentSearchContext = null;
+
+    const resultsContainer = $("flightsList") || $("results");
+    if (resultsContainer) {
+        resultsContainer.innerHTML = "";
+    }
+
+    const emptyPrompt = $("emptySearchPrompt");
+    if (emptyPrompt) emptyPrompt.style.display = "block";
+
+    const filterBar = $("flightFilterBar") || $("flightFilters");
+    if (filterBar) filterBar.style.display = "none";
+
+    const compSection = $("comparison-section");
+    if (compSection) compSection.style.display = "none";
+
+    const navCompare = $("navCompareLink");
+    if (navCompare) navCompare.style.display = "none";
+
+    const statusStrip = $("flightStatusStrip");
+    if (statusStrip) {
+        statusStrip.style.display = "none";
+        statusStrip.classList.remove("is-stale");
+    }
+
+    const resultSummary = $("resultSummary");
+    if (resultSummary) resultSummary.textContent = "";
+
+    const resultsCountLabel = $("resultsCountLabel");
+    if (resultsCountLabel) resultsCountLabel.textContent = "";
+
+    document.querySelectorAll(".stale-results-notice").forEach(el => el.remove());
+}
+
+function markResultsAsStale() {
+    if (!allFlightResults || allFlightResults.length === 0) return;
+
+    const strip = $("flightStatusStrip");
+    if (strip && strip.style.display !== "none") {
+        strip.classList.add("is-stale");
+        const observedEl = $("flightStatusObserved");
+        if (observedEl && !observedEl.textContent.includes("(Modified)")) {
+            observedEl.textContent += " (Modified)";
+        }
+    }
+
+    const resultsContainer = $("flightsList") || $("results");
+    if (resultsContainer && !$("staleResultsNotice")) {
+        const notice = document.createElement("div");
+        notice.id = "staleResultsNotice";
+        notice.className = "stale-results-notice";
+        notice.setAttribute("role", "status");
+        notice.innerHTML = `
+            <span class="stale-notice-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+            </span>
+            <span>Search parameters modified. Previous search results shown below — click <strong>Search</strong> to refresh.</span>
+        `;
+        resultsContainer.prepend(notice);
+    }
+}
+
+function updateFlightStatusStrip(searchContext, flights, data = {}) {
+    const strip = $("flightStatusStrip");
+    if (!strip) return;
+
+    if (!searchContext || !Array.isArray(flights) || flights.length === 0) {
+        strip.style.display = "none";
+        strip.classList.remove("is-stale");
+        return;
+    }
+
+    const routeEl = $("flightStatusRoute");
+    const metaEl = $("flightStatusMeta");
+    const providerEl = $("flightStatusProvider");
+    const observedEl = $("flightStatusObserved");
+    const cacheEl = $("flightStatusCache");
+
+    if (routeEl) {
+        if (searchContext.tripType === "multi_city" && Array.isArray(searchContext.legs)) {
+            const stops = searchContext.legs.map(l => l.departure);
+            if (searchContext.legs.length > 0) {
+                stops.push(searchContext.legs[searchContext.legs.length - 1].arrival);
+            }
+            routeEl.textContent = stops.join(" → ");
+        } else if (searchContext.tripType === "round_trip" || searchContext.returnDate) {
+            routeEl.textContent = `${searchContext.departureCode} ⇄ ${searchContext.arrivalCode}`;
+        } else {
+            routeEl.textContent = `${searchContext.departureCode} → ${searchContext.arrivalCode}`;
+        }
+    }
+
+    if (metaEl) {
+        const pax = searchContext.passengers || 1;
+        const classNames = { "1": "Economy", "2": "Premium Economy", "3": "Business", "4": "First" };
+        const cName = classNames[String(searchContext.travelClass)] || "Economy";
+        metaEl.textContent = `${pax} Traveler${pax > 1 ? "s" : ""} • ${cName}`;
+    }
+
+    const minPrice = flights.reduce((min, f) => {
+        const p = Number(f.price || f.fare || 0);
+        return p > 0 && (min === 0 || p < min) ? p : min;
+    }, 0);
+
+    if (observedEl) {
+        if (minPrice > 0) {
+            observedEl.textContent = `Lowest Fare: ₹${minPrice.toLocaleString("en-IN")}`;
+        } else {
+            observedEl.textContent = `Itineraries: ${flights.length}`;
+        }
+    }
+
+    if (providerEl) {
+        const provName = data.provider_name || data.provider || flights[0]?.provider || flights[0]?.source || "Verified Source";
+        providerEl.textContent = provName;
+    }
+
+    if (cacheEl) {
+        if (data.from_cache || data.cached) {
+            const timeStr = data.cached_at ? new Date(data.cached_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Recently";
+            cacheEl.textContent = `Cached (${timeStr})`;
+        } else {
+            cacheEl.textContent = "Live Provider Response";
+        }
+    }
+
+    strip.classList.remove("is-stale");
+    strip.style.display = "block";
+}
+
+function showFormError(msg, targetEl, legId) {
+    isSearching = false;
+    clearFlightResults({ clearInputs: false });
+
+    const submitBtns = document.querySelectorAll("#searchSubmitBtn, .search-launch-btn, .search-submit-btn");
+    submitBtns.forEach(btn => {
+        btn.disabled = false;
+        btn.classList.remove("loading");
+    });
+    const spinners = document.querySelectorAll("#searchBtnSpinner, .btn-loader");
+    spinners.forEach(s => s.style.display = "none");
+    const btnTexts = document.querySelectorAll("#searchBtnText, .primary-btn > span:not(.btn-loader)");
+    btnTexts.forEach(t => {
+        if (t.dataset.origText) t.textContent = t.dataset.origText;
+        else if (t.id === "searchBtnText") t.textContent = "Surveil Flight Trajectories";
+    });
+
     const statusEl = $("status");
     const wrapper = $("statusWrapper");
     if (statusEl) statusEl.textContent = msg;
@@ -1154,17 +1467,51 @@ function showFormError(msg, targetEl) {
     if (errText) errText.textContent = msg;
     if (errBanner) errBanner.style.display = "flex";
 
+    if (legId) {
+        const legErr = $(`mc_leg_error_${legId}`);
+        if (legErr) {
+            legErr.textContent = msg;
+            legErr.style.display = "flex";
+        }
+    } else if (targetEl && targetEl.id) {
+        const m = targetEl.id.match(/^mc_(?:dep|arr|date)_(\d+)$/);
+        if (m) {
+            const legErr = $(`mc_leg_error_${m[1]}`);
+            if (legErr) {
+                legErr.textContent = msg;
+                legErr.style.display = "flex";
+            }
+        }
+    }
+
     if (targetEl) {
-        targetEl.focus();
+        try { targetEl.focus(); } catch (e) {}
         targetEl.classList.add("field-error");
     }
 }
 
 function clearFormErrors() {
     document.querySelectorAll(".field-error").forEach(el => el.classList.remove("field-error"));
+    document.querySelectorAll(".leg-error-banner").forEach(el => {
+        el.style.display = "none";
+        el.textContent = "";
+    });
     if ($("status")) $("status").textContent = "";
     if ($("statusWrapper")) $("statusWrapper").style.display = "none";
     if ($("searchErrorBanner")) $("searchErrorBanner").style.display = "none";
+}
+
+function attachStaleDetectionListeners() {
+    const inputs = [
+        $("departure"), $("arrival"), $("outbound_date"), $("return_date"),
+        $("travelClass"), $("cabinClassSelect"), $("nearbyDeparture"), $("nearbyArrival"),
+        $("passengersInput")
+    ];
+    inputs.forEach(el => {
+        if (!el) return;
+        el.addEventListener("input", markResultsAsStale);
+        el.addEventListener("change", markResultsAsStale);
+    });
 }
 
 function setFlightSearchState(state, options = {}) {
@@ -1336,22 +1683,51 @@ async function executeFlightSearch(event) {
     try {
         clearFormErrors();
         const today = new Date().toISOString().split("T")[0];
-    let payload = null;
+        let payload = null;
 
-    let cabinClassVal = 1;
-    const cabinSel = $("cabinClassSelect") || $("travelClass");
-    if (cabinSel) {
-        const raw = cabinSel.value;
-        const classMap = { "economy": 1, "premium_economy": 2, "business": 3, "first": 4 };
-        cabinClassVal = classMap[raw] || parseInt(raw, 10) || 1;
-    }
-
-    if (currentTripType === "multi_city") {
-        syncMultiCityStateFromDOM();
-        if (multiCityLegs.length < 2) {
-            showFormError("Multi-city itineraries must contain at least 2 flight legs.");
-            return;
+        // Synchronize effective trip type immediately with DOM state & hidden field rules
+        let effectiveTripType = currentTripType;
+        const tripTypeEl = $("tripTypeInput");
+        if (tripTypeEl && tripTypeEl.value) {
+            effectiveTripType = tripTypeEl.value;
+        } else {
+            const activeTabEl = document.querySelector(".trip-tab-btn.active, .segment-btn.active, [data-trip].active, [data-type].active");
+            if (activeTabEl) {
+                const dt = activeTabEl.dataset.type || activeTabEl.dataset.trip;
+                if (dt === "one-way" || dt === "one_way") effectiveTripType = "one_way";
+                else if (dt === "round-trip" || dt === "round_trip") effectiveTripType = "round_trip";
+                else if (dt === "multi-city" || dt === "multi_city") effectiveTripType = "multi_city";
+            }
         }
+
+        // Critical safety rule: A hidden return-date field must never block a one-way search
+        const returnFieldGroup = $("returnDateFieldGroup") || $("returnDateWrap");
+        const isReturnFieldHidden = returnFieldGroup && (
+            returnFieldGroup.style.display === "none" ||
+            (typeof window !== "undefined" && window.getComputedStyle && window.getComputedStyle(returnFieldGroup).display === "none")
+        );
+        if (isReturnFieldHidden && effectiveTripType === "round_trip") {
+            effectiveTripType = "one_way";
+        }
+        currentTripType = effectiveTripType;
+        if (tripTypeEl) {
+            tripTypeEl.value = effectiveTripType;
+        }
+
+        let cabinClassVal = 1;
+        const cabinSel = $("cabinClassSelect") || $("travelClass");
+        if (cabinSel) {
+            const raw = cabinSel.value;
+            const classMap = { "economy": 1, "premium_economy": 2, "business": 3, "first": 4 };
+            cabinClassVal = classMap[raw] || parseInt(raw, 10) || 1;
+        }
+
+        if (effectiveTripType === "multi_city") {
+            syncMultiCityStateFromDOM();
+            if (multiCityLegs.length < 2) {
+                showFormError("Multi-city itineraries must contain at least 2 flight legs.");
+                return;
+            }
 
         const legPayloads = [];
         let prevDate = null;
@@ -1367,32 +1743,32 @@ async function executeFlightSearch(event) {
             const arrRes = await resolveAirportInput(arrEl, `Flight ${legNum} arrival`);
 
             if (!depRes || !depRes.iata) {
-                showFormError(`Please select a departure airport for Flight ${legNum}.`, depEl);
+                showFormError(`Please select a departure airport for Flight ${legNum}.`, depEl, leg.id);
                 return;
             }
 
             if (!arrRes || !arrRes.iata) {
-                showFormError(`Please select an arrival airport for Flight ${legNum}.`, arrEl);
+                showFormError(`Please select an arrival airport for Flight ${legNum}.`, arrEl, leg.id);
                 return;
             }
 
             if (depRes.iata === arrRes.iata) {
-                showFormError(`Flight ${legNum} origin and destination cannot be the same airport.`, arrEl);
+                showFormError(`Flight ${legNum} origin and destination cannot be the same airport.`, arrEl, leg.id);
                 return;
             }
 
             if (!leg.date) {
-                showFormError(`Please select a departure date for Flight ${legNum}.`, dateEl);
+                showFormError(`Please select a departure date for Flight ${legNum}.`, dateEl, leg.id);
                 return;
             }
 
             if (leg.date < today) {
-                showFormError(`Departure date for Flight ${legNum} cannot be in the past.`, dateEl);
+                showFormError(`Departure date for Flight ${legNum} cannot be in the past.`, dateEl, leg.id);
                 return;
             }
 
             if (prevDate && leg.date < prevDate) {
-                showFormError(`Flight ${legNum} departure date cannot be before Flight ${i} date.`, dateEl);
+                showFormError(`Flight ${legNum} departure date cannot be before Flight ${i} date.`, dateEl, leg.id);
                 return;
             }
             prevDate = leg.date;
@@ -1441,13 +1817,13 @@ async function executeFlightSearch(event) {
 
         const depRes = await resolveAirportInput(depInput, "Departure airport");
         if (!depRes || !depRes.iata) {
-            showFormError("Please select a valid origin airport from the suggestions (e.g. DEL, London, Bombay).", depInput);
+            showFormError("Please select a valid origin city or airport from the suggestions.", depInput);
             return;
         }
 
         const arrRes = await resolveAirportInput(arrInput, "Arrival airport");
         if (!arrRes || !arrRes.iata) {
-            showFormError("Please select a valid destination airport from the suggestions (e.g. BOM, Tokyo, Chennai).", arrInput);
+            showFormError("Please select a valid destination city or airport from the suggestions.", arrInput);
             return;
         }
 
@@ -1469,7 +1845,7 @@ async function executeFlightSearch(event) {
             return;
         }
 
-        if (currentTripType === "round_trip") {
+        if (effectiveTripType === "round_trip") {
             if (!returnDate) {
                 showFormError("Please select a return date for round-trip search.", $("return_date"));
                 return;
@@ -1484,11 +1860,11 @@ async function executeFlightSearch(event) {
         const nearbyArrival = $("nearbyArrival") ? $("nearbyArrival").checked : false;
 
         payload = {
-            trip_type: currentTripType,
+            trip_type: effectiveTripType,
             departure: depRes.iata,
             arrival: arrRes.iata,
             outbound_date: departureDate,
-            return_date: currentTripType === "round_trip" ? (returnDate || null) : null,
+            return_date: effectiveTripType === "round_trip" ? (returnDate || null) : null,
             nearby_departure: nearbyDeparture,
             nearby_arrival: nearbyArrival,
             adults: passengerCounts.adults,
@@ -1499,11 +1875,11 @@ async function executeFlightSearch(event) {
 
         latestSearch = payload;
         currentSearchContext = {
-            tripType: currentTripType,
+            tripType: effectiveTripType,
             departureCode: depRes.iata,
             arrivalCode: arrRes.iata,
             departureDate: departureDate,
-            returnDate: currentTripType === "round_trip" ? returnDate : null,
+            returnDate: effectiveTripType === "round_trip" ? returnDate : null,
             passengers: passengerCounts.adults + passengerCounts.children + passengerCounts.infants,
             adults: passengerCounts.adults,
             children: passengerCounts.children,
@@ -1514,6 +1890,8 @@ async function executeFlightSearch(event) {
             sessionStorage.setItem("skytrack_search_context", JSON.stringify(currentSearchContext));
         } catch (e) {}
     }
+
+    const thisRequestId = ++activeSearchRequestId;
 
     setFlightSearchState("loading");
 
@@ -1532,16 +1910,22 @@ async function executeFlightSearch(event) {
             throw new Error(`Invalid server response (${response.status})`);
         }
 
+        if (thisRequestId !== activeSearchRequestId) {
+            console.warn(`Ignoring stale response for search #${thisRequestId} (active is #${activeSearchRequestId})`);
+            return;
+        }
+
         if (!response.ok) {
             throw new Error(data && data.error ? data.error : `Flight search failed with status ${response.status}.`);
         }
 
         if (!data || !data.results || !data.results.length) {
             setFlightSearchState("empty");
+            updateFlightStatusStrip(currentSearchContext, [], data);
             return;
         }
 
-        allFlightResults = [...data.results];
+        allFlightResults = deduplicateFlights(data.results);
 
         if (typeof renderNearbyAirportComparison === "function") {
             try {
@@ -1563,6 +1947,7 @@ async function executeFlightSearch(event) {
         }
 
         applyFlightFilters();
+        updateFlightStatusStrip(currentSearchContext, allFlightResults, data);
 
         const countStr = `${allFlightResults.length} flights found`;
         if ($("status")) $("status").textContent = countStr;
@@ -1681,7 +2066,7 @@ function applyFlightFilters() {
         return;
     }
 
-    let filteredFlights = [...allFlightResults];
+    let filteredFlights = deduplicateFlights(allFlightResults);
 
     // Stops filter (supporting both flights.html filter-pills and index.html checkboxes)
     const activeStopsPill = document.querySelector("#flightFilterBar .filter-pill.active");
@@ -1723,12 +2108,20 @@ function applyFlightFilters() {
     if (sortVal === "fastest" || sortVal === "duration_asc") {
         filteredFlights.sort((a, b) => Number(a.duration || 0) - Number(b.duration || 0));
     } else if (sortVal === "price_desc") {
-        filteredFlights.sort((a, b) => Number(b.price || 0) - Number(a.price || 0));
+        filteredFlights.sort((a, b) => {
+            const pA = (!isNaN(Number(a.price)) && Number(a.price) > 0) ? Number(a.price) : -Infinity;
+            const pB = (!isNaN(Number(b.price)) && Number(b.price) > 0) ? Number(b.price) : -Infinity;
+            return pB - pA;
+        });
     } else if (sortVal === "departure_asc") {
         filteredFlights.sort((a, b) => String(a.departure_time || "").localeCompare(String(b.departure_time || "")));
     } else {
-        // cheapest / price_asc
-        filteredFlights.sort((a, b) => Number(a.price || 0) - Number(b.price || 0));
+        // cheapest / price_asc: valid lowest price first; missing/0 pushed to end
+        filteredFlights.sort((a, b) => {
+            const pA = (!isNaN(Number(a.price)) && Number(a.price) > 0) ? Number(a.price) : Infinity;
+            const pB = (!isNaN(Number(b.price)) && Number(b.price) > 0) ? Number(b.price) : Infinity;
+            return pA - pB;
+        });
     }
 
     // Update count labels
@@ -2630,15 +3023,26 @@ async function renderFlightResults(flights) {
                           `
                         : "";
 
-                const ageMinutes = (typeof flight.age_seconds === "number" && flight.age_seconds > 0)
-                    ? Math.max(1, Math.round(flight.age_seconds / 60))
-                    : null;
-                const cachedTimeLabel = ageMinutes ? `${ageMinutes}m ago` : "Recent";
-                const statusBadge = (flight.is_simulated || flight.data_status === "demonstration")
-                    ? `<span class="data-status-badge demo-badge font-mono" title="Live SerpAPI unconfigured or quota unavailable. Benchmark fare displayed.">DEMONSTRATION FARE</span>`
-                    : (flight.is_cached || flight.data_status === "cached")
-                        ? `<span class="data-status-badge cached-badge font-mono" title="Cached observation from ${flight.cached_at || 'recent query'}. Fares fluctuate.">CACHED FARE (${cachedTimeLabel})</span>`
-                        : `<span class="data-status-badge live-badge font-mono" title="Live verified fare via SerpAPI">LIVE VERIFIED FARE</span>`;
+                // Audit data status according to strict truthfulness rules
+                let statusBadge = "";
+                const isDemo = Boolean(flight.is_simulated || flight.data_status === "demonstration");
+                const isCached = Boolean(flight.is_cached || flight.data_status === "cached");
+                const isLiveFresh = Boolean(flight.is_live && !isCached && !isDemo && (typeof flight.age_seconds !== "number" || flight.age_seconds < 300));
+
+                if (isDemo) {
+                    statusBadge = `<span class="data-status-badge demo-badge font-mono" title="Simulated benchmark fare — not confirmed bookable carrier inventory.">Demo data — not bookable</span>`;
+                } else if (isCached) {
+                    const ageMinutes = (typeof flight.age_seconds === "number" && flight.age_seconds > 0)
+                        ? Math.max(1, Math.round(flight.age_seconds / 60))
+                        : null;
+                    const cachedTimeLabel = ageMinutes ? `${ageMinutes}m ago` : (flight.cached_at ? `Observed ${flight.cached_at}` : "Recent cache");
+                    statusBadge = `<span class="data-status-badge cached-badge font-mono" title="Cached observation from ${escapeHtml(flight.cached_at || 'prior query')}. Fares fluctuate in real-time.">CACHED FARE (${cachedTimeLabel})</span>`;
+                } else if (isLiveFresh) {
+                    const providerLabel = flight.source || "Live API";
+                    statusBadge = `<span class="data-status-badge live-badge font-mono" title="Fresh upstream provider quote via ${escapeHtml(providerLabel)}. Direct carrier confirmation required for booking.">LIVE PROVIDER FARE</span>`;
+                } else {
+                    statusBadge = `<span class="data-status-badge neutral-badge font-mono" title="Observed market tariff. Verify current availability directly with carrier.">Price information available</span>`;
+                }
 
 
                 /* ---------------------------------------------
@@ -2710,7 +3114,13 @@ async function renderFlightResults(flights) {
                                 <button
                                     type="button"
                                     class="track-btn"
+                                    data-index="${index}"
                                     data-price="${price}"
+                                    data-dep="${escapeHtml(flight.departure_airport || '')}"
+                                    data-arr="${escapeHtml(flight.arrival_airport || '')}"
+                                    data-date="${escapeHtml(flight.departure_date || flight.outbound_date || '')}"
+                                    data-flight-no="${escapeHtml(flight.flight_number || '')}"
+                                    data-airline="${escapeHtml(flight.airline || '')}"
                                 >
                                     Track Price
                                 </button>
@@ -2732,7 +3142,7 @@ async function renderFlightResults(flights) {
     const hasSimulated = flights.some(f => f.is_simulated || f.data_status === "demonstration");
     const disclosureHtml = hasSimulated
         ? `<div class="data-source-disclosure-banner font-mono" style="margin-bottom: 20px; padding: 12px 18px; border-radius: var(--radius-md); background: rgba(223, 201, 158, 0.05); border: 1px solid var(--accent-gold-border); font-size: 0.74rem; color: var(--text-secondary); line-height: 1.5;">
-            <span class="text-gold" style="font-weight: 700; letter-spacing: 0.08em;">DATA TRANSPARENCY:</span> Demonstration flight benchmarks displayed (Live SerpAPI credentials unconfigured). Fares represent simulated market models, not confirmed bookable carrier inventory.
+            <span class="text-gold" style="font-weight: 700; letter-spacing: 0.08em;">Demo data — not bookable:</span> Benchmark flight data displayed (Live API credentials unconfigured or benchmark mode). Fares represent simulated models, not confirmed bookable carrier inventory.
            </div>`
         : "";
 
@@ -2766,6 +3176,9 @@ async function renderFlightResults(flights) {
             button.addEventListener(
                 "click",
                 () => {
+                    const idx = Number(button.dataset.index);
+                    const flight = flights[idx];
+                    currentTrackingFlight = flight || null;
 
                     const price =
                         Number(
@@ -2773,7 +3186,7 @@ async function renderFlightResults(flights) {
                         );
 
 
-                    if (!Number.isNaN(price)) {
+                    if (!Number.isNaN(price) && price > 0) {
 
                         const target =
                             $("target_price");
@@ -2791,11 +3204,15 @@ async function renderFlightResults(flights) {
                     const trackModal = $("trackPriceModal");
                     if (trackModal) {
                         trackModal.style.display = "flex";
-                        if ($("trackTargetPrice") && !Number.isNaN(price)) {
+                        if ($("trackTargetPrice") && !Number.isNaN(price) && price > 0) {
                             $("trackTargetPrice").value = Math.round(price * 0.9);
                         }
-                        if ($("modalRouteSummary") && latestSearch) {
-                            $("modalRouteSummary").textContent = `${latestSearch.departure || ''} → ${latestSearch.arrival || ''} · ${latestSearch.outbound_date || ''}`;
+                        if ($("modalRouteSummary")) {
+                            const summaryDep = (flight && flight.departure_airport) || button.dataset.dep || (latestSearch && latestSearch.departure) || "";
+                            const summaryArr = (flight && flight.arrival_airport) || button.dataset.arr || (latestSearch && latestSearch.arrival) || "";
+                            const summaryDate = (flight && (flight.departure_date || flight.outbound_date)) || button.dataset.date || (latestSearch && latestSearch.outbound_date) || "";
+                            const flightInfo = (flight && flight.flight_number) ? ` (${flight.airline || ''} ${flight.flight_number})` : "";
+                            $("modalRouteSummary").textContent = `${summaryDep} → ${summaryArr} · ${summaryDate}${flightInfo}`;
                         }
                         return;
                     }
@@ -5941,14 +6358,23 @@ async function openExactFlightComparison(flight) {
     if (!compSection) {
         // When on /flights or another standalone page, navigate directly to /compare
         // preserving exact flight payload in sessionStorage and route query params in URL
-        const dep = flight.departure_airport || (currentSearchContext?.departureCode) || $("departure")?.dataset?.iata || $("departure")?.value?.substring(0, 3) || "DEL";
-        const arr = flight.arrival_airport || (currentSearchContext?.arrivalCode) || $("arrival")?.dataset?.iata || $("arrival")?.value?.substring(0, 3) || "BOM";
+        const dep = flight.departure_airport || (currentSearchContext?.departureCode) || $("departure")?.dataset?.iata || $("departure")?.value?.trim() || "";
+        const arr = flight.arrival_airport || (currentSearchContext?.arrivalCode) || $("arrival")?.dataset?.iata || $("arrival")?.value?.trim() || "";
         const date = currentSearchContext?.departureDate || $("outbound_date")?.value || "";
         const retDate = currentSearchContext?.returnDate || $("return_date")?.value || "";
+        const tripType = flight.trip_type || currentSearchContext?.tripType || (retDate ? "round_trip" : "one_way");
+        const passengers = currentSearchContext?.passengers || $("passengers")?.value || "1";
+        const travelClass = currentSearchContext?.travelClass || $("travelClass")?.value || "1";
+        const itinId = flight.itinerary_id || flight.flight_number || "";
+
         const params = new URLSearchParams({
-            departure: dep.toUpperCase(),
-            arrival: arr.toUpperCase(),
+            departure: dep ? dep.toUpperCase() : "",
+            arrival: arr ? arr.toUpperCase() : "",
             outbound_date: date,
+            trip_type: tripType,
+            passengers: String(passengers),
+            travel_class: String(travelClass),
+            itinerary_id: itinId,
             selected: "true"
         });
         if (retDate) params.set("return_date", retDate);
@@ -5990,8 +6416,8 @@ async function openExactFlightComparison(flight) {
     if (summaryCard) {
         summaryCard.style.display = "block";
 
-        const depCode = flight.departure_airport || (currentSearchContext?.departureCode) || "DEL";
-        const arrCode = flight.arrival_airport || (currentSearchContext?.arrivalCode) || "MAA";
+        const depCode = flight.departure_airport || (currentSearchContext?.departureCode) || $("departure")?.dataset?.iata || "";
+        const arrCode = flight.arrival_airport || (currentSearchContext?.arrivalCode) || $("arrival")?.dataset?.iata || "";
 
         const depInfo = await getAirportInfo(depCode);
         const arrInfo = await getAirportInfo(arrCode);
@@ -6129,9 +6555,9 @@ async function openExactFlightComparison(flight) {
         `;
     }
 
-    // 2. Filter or generate provider offers for this EXACT flight
+    // 2. Filter or collect provider offers for this EXACT flight
     let exactOffers = [];
-    if (flight.comparison_offers && flight.comparison_offers.length > 0) {
+    if (Array.isArray(flight.comparison_offers) && flight.comparison_offers.length > 0) {
         exactOffers = [...flight.comparison_offers];
     } else if (latestComparisonData && Array.isArray(latestComparisonData.grouped_itineraries)) {
         const group = latestComparisonData.grouped_itineraries.find(g =>
@@ -6140,100 +6566,68 @@ async function openExactFlightComparison(flight) {
             g.departure_airport === flight.departure_airport &&
             g.arrival_airport === flight.arrival_airport
         );
-        if (group && group.offers) {
+        if (group && Array.isArray(group.offers) && group.offers.length > 0) {
             exactOffers = [...group.offers];
         }
     }
 
-    // If still empty, build legitimate provider offers for this exact schedule
+    // Include primary flight offer if valid and not already present
+    const basePrice = Number(flight.price);
+    if (!isNaN(basePrice) && basePrice > 0) {
+        const primaryProvider = flight.source || flight.airline || "Carrier";
+        const alreadyHasPrimary = exactOffers.some(o =>
+            (o.provider === primaryProvider || o.provider_name === primaryProvider) && Math.abs(Number(o.price) - basePrice) < 1
+        );
+        if (!alreadyHasPrimary) {
+            exactOffers.unshift({
+                provider_id: "carrier_primary",
+                provider: primaryProvider,
+                provider_name: primaryProvider,
+                provider_type: "airline_direct",
+                airline: flight.airline || "Carrier",
+                flight_number: flight.flight_number || "",
+                departure_airport: flight.departure_airport || "",
+                arrival_airport: flight.arrival_airport || "",
+                departure_time: flight.departure_time || "",
+                arrival_time: flight.arrival_time || "",
+                duration: flight.duration || 0,
+                stops: flight.stops || 0,
+                price: basePrice,
+                currency: flight.currency || "INR",
+                baggage: flight.baggage || "Cabin: 7 kg included",
+                booking_url: flight.booking_url || "",
+                is_live: flight.is_live,
+                data_status: flight.data_status
+            });
+        }
+    }
+
+    const exactContainer = $("exactFlightOffersContainer");
+    const exactHeader = $("exactOffersHeader");
+    if (exactHeader) exactHeader.style.display = "block";
+
+    // If completely empty, show authentic empty state without fabricated prices
     if (exactOffers.length === 0) {
-        const basePrice = Number(flight.price) || 5000;
-        const airline = flight.airline || "Carrier";
-        const flightNo = flight.flight_number || (flight.segments?.[0]?.flight_number) || `${airline.slice(0, 2).toUpperCase()} 101`;
-        const depCode = flight.departure_airport || (currentSearchContext?.departureCode) || "DEL";
-        const arrCode = flight.arrival_airport || (currentSearchContext?.arrivalCode) || "MAA";
-        const date = currentSearchContext?.departureDate || $("outbound_date")?.value || "";
-        const retDate = currentSearchContext?.returnDate || $("return_date")?.value || "";
-
-        const providersList = [
-            {
-                id: "airline_direct",
-                name: `${airline} Direct`,
-                type: "airline_direct",
-                price: basePrice,
-                baggage: "Cabin: 7 kg • Check-in: 15 kg included",
-                url: buildAirlineDirectUrl(airline, depCode, arrCode, date, retDate)
-            },
-            {
-                id: "makemytrip",
-                name: "MakeMyTrip",
-                type: "ota",
-                price: basePrice + 90,
-                baggage: "Cabin: 7 kg • Check-in: 15 kg",
-                url: buildMakeMyTripUrl(depCode, arrCode, date, retDate)
-            },
-            {
-                id: "cleartrip",
-                name: "Cleartrip",
-                type: "ota",
-                price: basePrice + 40,
-                baggage: "Cabin: 7 kg • Check-in: 15 kg",
-                url: buildCleartripUrl(depCode, arrCode, date, retDate)
-            },
-            {
-                id: "easemytrip",
-                name: "EaseMyTrip",
-                type: "ota",
-                price: Math.max(1000, basePrice - 160),
-                baggage: "Cabin: 7 kg • Check-in: 15 kg",
-                url: buildEaseMyTripUrl(depCode, arrCode)
-            },
-            {
-                id: "expedia",
-                name: "Expedia",
-                type: "ota",
-                price: basePrice + 110,
-                baggage: "Cabin: 7 kg • Check-in: 15 kg",
-                url: buildExpediaUrl(depCode, arrCode, date, retDate)
-            },
-            {
-                id: "google_flights",
-                name: "Google Flights",
-                type: "metasearch",
-                price: basePrice,
-                baggage: "Cabin: 7 kg included",
-                url: buildGoogleFlightsUrl(airline, depCode, arrCode, date)
-            }
-        ];
-
-        exactOffers = providersList.map(p => ({
-            provider_id: p.id,
-            provider_name: p.name,
-            provider_type: p.type,
-            airline: airline,
-            flight_number: flightNo,
-            departure_airport: depCode,
-            arrival_airport: arrCode,
-            departure_time: flight.departure_time || "",
-            arrival_time: flight.arrival_time || "",
-            duration: flight.duration || 0,
-            stops: flight.stops || 0,
-            price: p.price,
-            currency: "INR",
-            baggage: p.baggage,
-            booking_url: p.url
-        }));
+        if (exactContainer) {
+            exactContainer.style.display = "block";
+            exactContainer.innerHTML = `
+                <div class="empty-comparison-state font-mono" style="padding: 40px; text-align: center; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.02); color: var(--text-secondary); margin-top: 16px;">
+                    <p style="margin-bottom: 8px; font-size: 0.95rem; color: var(--text-primary); font-weight: 600;">No vendor comparison quotes available</p>
+                    <p style="font-size: 0.8rem;">No additional third-party booking options were returned by providers for this specific flight schedule.</p>
+                </div>
+            `;
+        }
+        compSection.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
     }
 
     // Sort ascending by price
-    exactOffers.sort((a, b) => a.price - b.price);
+    exactOffers.sort((a, b) => (Number(a.price) || Infinity) - (Number(b.price) || Infinity));
 
     const minPrice = exactOffers[0].price;
     const tiedCount = exactOffers.filter(o => o.price === minPrice).length;
 
     // Render Exact Offers Table
-    const exactContainer = $("exactFlightOffersContainer");
-    const exactHeader = $("exactOffersHeader");
     if (exactHeader) exactHeader.style.display = "block";
     if (exactContainer) {
         exactContainer.style.display = "block";
@@ -7047,7 +7441,13 @@ function initFlightsPageExtras() {
             const targetPrice = $("trackTargetPrice")?.value;
             const email = $("trackEmail")?.value;
 
-            if (!latestSearch || !latestSearch.departure || !latestSearch.arrival) {
+            const trackDep = (currentTrackingFlight && (currentTrackingFlight.departure_airport || currentTrackingFlight.departure || (currentTrackingFlight.legs && currentTrackingFlight.legs[0]?.departure_airport) || (currentTrackingFlight.legs && currentTrackingFlight.legs[0]?.departure))) || (latestSearch && (latestSearch.departure || (latestSearch.legs && latestSearch.legs[0]?.departure)));
+            const trackArr = (currentTrackingFlight && (currentTrackingFlight.arrival_airport || currentTrackingFlight.arrival || (currentTrackingFlight.legs && currentTrackingFlight.legs[currentTrackingFlight.legs.length - 1]?.arrival_airport) || (currentTrackingFlight.legs && currentTrackingFlight.legs[currentTrackingFlight.legs.length - 1]?.arrival))) || (latestSearch && (latestSearch.arrival || (latestSearch.legs && latestSearch.legs[latestSearch.legs.length - 1]?.arrival)));
+            const trackDate = (currentTrackingFlight && (currentTrackingFlight.departure_date || currentTrackingFlight.outbound_date || (currentTrackingFlight.legs && currentTrackingFlight.legs[0]?.departure_date) || (currentTrackingFlight.legs && currentTrackingFlight.legs[0]?.outbound_date))) || (latestSearch && (latestSearch.outbound_date || (latestSearch.legs && latestSearch.legs[0]?.outbound_date)));
+            const trackReturn = (currentTrackingFlight && (currentTrackingFlight.return_departure_time || currentTrackingFlight.return_date)) || (latestSearch && latestSearch.return_date);
+            const trackTripType = (currentTrackingFlight && currentTrackingFlight.trip_type) || (latestSearch && latestSearch.trip_type) || (trackReturn ? "round_trip" : "one_way");
+
+            if (!trackDep || !trackArr || !trackDate) {
                 if (errBanner) {
                     errBanner.textContent = "Please conduct a flight trajectory search first.";
                     errBanner.style.display = "block";
@@ -7060,10 +7460,11 @@ function initFlightsPageExtras() {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        departure: latestSearch.departure,
-                        arrival: latestSearch.arrival,
-                        outbound_date: latestSearch.outbound_date,
-                        return_date: latestSearch.return_date,
+                        departure: trackDep,
+                        arrival: trackArr,
+                        outbound_date: trackDate,
+                        return_date: trackReturn,
+                        trip_type: trackTripType,
                         target_price: parseFloat(targetPrice),
                         email: email
                     })

@@ -357,6 +357,7 @@ def test_search_with_zero_results(client, monkeypatch):
 def test_provider_timeout_handled_gracefully(client, monkeypatch):
     """Provider timeout falls back to clearly flagged simulated results without crash."""
     monkeypatch.setenv("SERPAPI_KEY", "mock_valid_key_12345")
+    monkeypatch.setenv("ALLOW_SIMULATED_FALLBACK", "true")
 
     with patch("services.flight_api.requests.get", side_effect=requests.exceptions.Timeout("Connection timed out")):
         res = client.post(
@@ -380,6 +381,7 @@ def test_provider_timeout_handled_gracefully(client, monkeypatch):
 def test_provider_http_error_handled_gracefully(client, monkeypatch):
     """Provider 429 quota exhaustion falls back to clearly flagged simulated results without crash."""
     monkeypatch.setenv("SERPAPI_KEY", "mock_valid_key_12345")
+    monkeypatch.setenv("ALLOW_SIMULATED_FALLBACK", "true")
 
     mock_err_resp = MagicMock()
     mock_err_resp.status_code = 429
@@ -430,6 +432,7 @@ def test_fatal_unhandled_exception_returns_500(client):
 def test_malformed_provider_payload(client, monkeypatch):
     """Provider returning unexpected dictionary structure falls back gracefully."""
     monkeypatch.setenv("SERPAPI_KEY", "mock_valid_key_12345")
+    monkeypatch.setenv("ALLOW_SIMULATED_FALLBACK", "true")
 
     malformed_payload = {
         "error": "Google Flights engine encountered an internal upstream error",
@@ -535,3 +538,233 @@ def test_round_trip_and_multicity_preserved(client, monkeypatch):
     mc_data = res_mc.get_json()
     assert mc_data["trip_type"] == "multi_city"
     assert len(mc_data["results"]) > 0
+
+
+# =====================================================================
+# 13. SCREEN RECORDING REGRESSION TESTS (ONE-WAY, BLANK INPUTS, ROUTING)
+# =====================================================================
+
+def test_one_way_search_without_return_date_succeeds(client, monkeypatch):
+    """Regression test for screen recording bug:
+    One-way search with origin, destination, and departure date must NOT require a return date."""
+    monkeypatch.delenv("SERPAPI_KEY", raising=False)
+    dep_date = (datetime.date.today() + datetime.timedelta(days=20)).isoformat()
+
+    response = client.post(
+        "/api/search",
+        json={
+            "trip_type": "one_way",
+            "departure": "DEL",
+            "arrival": "MAA",
+            "outbound_date": dep_date,
+            "return_date": None,
+            "adults": 1,
+            "cabin_class": "economy",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["search_airports"]["departure"] == ["DEL"]
+    assert data["search_airports"]["arrival"] == ["MAA"]
+    assert data["trip_type"] == "one_way"
+    assert "results" in data
+    assert len(data["results"]) > 0
+
+
+def test_round_trip_missing_return_date_rejected(client):
+    """Round-trip search missing return date must return 400 with a clear error."""
+    dep_date = (datetime.date.today() + datetime.timedelta(days=20)).isoformat()
+
+    response = client.post(
+        "/api/search",
+        json={
+            "trip_type": "round_trip",
+            "departure": "DEL",
+            "arrival": "MAA",
+            "outbound_date": dep_date,
+            "return_date": None,
+        },
+    )
+
+    assert response.status_code == 400
+    data = response.get_json()
+    assert "error" in data
+    assert "return date" in data["error"].lower()
+
+
+def test_round_trip_inverted_dates_rejected(client):
+    """Round-trip search with return date before departure date must return 400."""
+    dep_date = (datetime.date.today() + datetime.timedelta(days=20)).isoformat()
+    ret_date = (datetime.date.today() + datetime.timedelta(days=10)).isoformat()
+
+    response = client.post(
+        "/api/search",
+        json={
+            "trip_type": "round_trip",
+            "departure": "DEL",
+            "arrival": "MAA",
+            "outbound_date": dep_date,
+            "return_date": ret_date,
+        },
+    )
+
+    assert response.status_code == 400
+    data = response.get_json()
+    assert "error" in data
+    assert "before" in data["error"].lower()
+
+
+def test_flights_page_serves_blank_dates_and_clean_inputs(client):
+    """Ensure flights.html does NOT prefill outbound_date or airport fields with demo values."""
+    res = client.get("/flights")
+    assert res.status_code == 200
+    html = res.get_data(as_text=True)
+
+    # Inputs must exist with clean placeholders and no hardcoded demo values
+    assert 'id="departure"' in html
+    assert 'id="arrival"' in html
+    assert 'id="outbound_date"' in html
+    assert 'id="return_date"' in html
+    assert 'value="LHR"' not in html
+    assert 'value="KIX"' not in html
+
+
+def test_route_del_to_maa_and_reverse_bidirectional(client, monkeypatch):
+    """Test representative route DEL to MAA and reverse MAA to DEL."""
+    monkeypatch.delenv("SERPAPI_KEY", raising=False)
+    dep_date = (datetime.date.today() + datetime.timedelta(days=14)).isoformat()
+
+    # Outbound: DEL -> MAA
+    res_fwd = client.post(
+        "/api/search",
+        json={
+            "trip_type": "one_way",
+            "departure": "DEL",
+            "arrival": "MAA",
+            "outbound_date": dep_date,
+        },
+    )
+    assert res_fwd.status_code == 200
+    fwd_data = res_fwd.get_json()
+    assert fwd_data["search_airports"]["departure"] == ["DEL"]
+    assert fwd_data["search_airports"]["arrival"] == ["MAA"]
+
+    # Reverse: MAA -> DEL
+    res_rev = client.post(
+        "/api/search",
+        json={
+            "trip_type": "one_way",
+            "departure": "MAA",
+            "arrival": "DEL",
+            "outbound_date": dep_date,
+        },
+    )
+    assert res_rev.status_code == 200
+    rev_data = res_rev.get_json()
+    assert rev_data["search_airports"]["departure"] == ["MAA"]
+    assert rev_data["search_airports"]["arrival"] == ["DEL"]
+
+
+def test_diagnostics_quota_reset_unauthenticated_rejected(client):
+    """POST /api/diagnostics/quota/reset without authentication must be rejected with 401 or 403."""
+    response = client.post(
+        "/api/diagnostics/quota/reset",
+        json={"provider_id": "serpapi"}
+    )
+    assert response.status_code in [401, 403]
+
+
+# =====================================================================
+# 13. MULTI-CITY SEARCH VALIDATION & FLIGHTAPI LIMITATION TESTS
+# =====================================================================
+
+def test_multi_city_missing_or_invalid_legs_rejected(client):
+    """Multi-city search with missing, insufficient, or invalid legs must be rejected with 400."""
+    # 0 legs
+    res = client.post("/api/search", json={"trip_type": "multi_city", "legs": []})
+    assert res.status_code == 400
+    assert "at least 2" in res.get_json()["error"].lower()
+
+    # 1 leg
+    t1 = (datetime.date.today() + datetime.timedelta(days=10)).isoformat()
+    res = client.post("/api/search", json={
+        "trip_type": "multi_city",
+        "legs": [{"departure": "DEL", "arrival": "BOM", "outbound_date": t1}]
+    })
+    assert res.status_code == 400
+    assert "at least 2" in res.get_json()["error"].lower()
+
+    # Leg missing arrival
+    res = client.post("/api/search", json={
+        "trip_type": "multi_city",
+        "legs": [
+            {"departure": "DEL", "arrival": "BOM", "outbound_date": t1},
+            {"departure": "BOM", "arrival": "", "outbound_date": t1}
+        ]
+    })
+    assert res.status_code == 400
+
+    # Leg with date in the past
+    past_date = (datetime.date.today() - datetime.timedelta(days=2)).isoformat()
+    res = client.post("/api/search", json={
+        "trip_type": "multi_city",
+        "legs": [
+            {"departure": "DEL", "arrival": "BOM", "outbound_date": past_date},
+            {"departure": "BOM", "arrival": "BLR", "outbound_date": t1}
+        ]
+    })
+    assert res.status_code == 400
+    assert "past" in res.get_json()["error"].lower()
+
+    # Leg with inverted date sequence
+    t2 = (datetime.date.today() + datetime.timedelta(days=5)).isoformat()
+    res = client.post("/api/search", json={
+        "trip_type": "multi_city",
+        "legs": [
+            {"departure": "DEL", "arrival": "BOM", "outbound_date": t1},
+            {"departure": "BOM", "arrival": "BLR", "outbound_date": t2}
+        ]
+    })
+    assert res.status_code == 400
+    assert "before" in res.get_json()["error"].lower()
+
+
+def test_multi_city_flightapi_2_leg_limitation_explicit_error(client, monkeypatch):
+    """When FlightAPI is configured as primary, a 2-leg multi-city search must explicitly explain the 3-5 leg limit."""
+    from services.providers.flightapi_provider import FlightApiProvider
+    monkeypatch.setenv("PRIMARY_FLIGHT_PROVIDER", "flightapi")
+    monkeypatch.setenv("FLIGHTAPI_API_KEY", "test_key_mock")
+    monkeypatch.delenv("ALLOW_SIMULATED_FALLBACK", raising=False)
+
+    t1 = (datetime.date.today() + datetime.timedelta(days=10)).isoformat()
+    t2 = (datetime.date.today() + datetime.timedelta(days=14)).isoformat()
+
+    res = client.post("/api/search", json={
+        "trip_type": "multi_city",
+        "legs": [
+            {"departure": "DEL", "arrival": "BOM", "outbound_date": t1},
+            {"departure": "BOM", "arrival": "BLR", "outbound_date": t2}
+        ]
+    })
+    assert res.status_code == 400
+    err = res.get_json()["error"]
+    assert "3 and 5" in err or "3 to 5" in err
+    assert "multi-city" in err.lower() or "round-trip" in err.lower()
+
+
+def test_multi_city_max_legs_enforcement(client):
+    """Multi-city itineraries exceeding 5 legs must be rejected."""
+    today = datetime.date.today()
+    legs = []
+    airports = ["DEL", "BOM", "BLR", "MAA", "CCU", "HYD", "GOI"]
+    for i in range(6):
+        d = (today + datetime.timedelta(days=10 + i * 2)).isoformat()
+        legs.append({"departure": airports[i], "arrival": airports[i+1], "outbound_date": d})
+
+    res = client.post("/api/search", json={
+        "trip_type": "multi_city",
+        "legs": legs
+    })
+    assert res.status_code == 400
+    assert "5" in res.get_json()["error"]

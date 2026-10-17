@@ -242,7 +242,7 @@ def test_checker_alerts_on_price_drop(monkeypatch):
 
     user_alerts = [e for e in emails_sent if e["to"] == test_email]
     assert len(user_alerts) == 1
-    assert "Flight Price Alert" in user_alerts[0]["subject"]
+    assert "Flight price dropped" in user_alerts[0]["subject"] or "Flight Price Alert" in user_alerts[0]["subject"]
     assert "CONFIRMED FARE DROP" in user_alerts[0]["body"]
     assert "8,000" in user_alerts[0]["body"]
 

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}Flight Comparison Matrix — Multi-Provider Fare Arbitrage | SkyTracker{% endblock %}
-{% block meta_description %}Compare live airline flight offers across Google Flights, Amadeus, Expedia, MakeMyTrip, Cleartrip, and direct airline bookings to identify true fare arbitrage.{% endblock %}
+{% block meta_description %}Compare live airline flight offers across FlightAPI, Amadeus, SerpAPI, and direct airline bookings to identify true fare arbitrage.{% endblock %}
 {% block canonical_url %}https://skytrack-flights.onrender.com/compare{% endblock %}
 
 {% block content %}
@@ -30,7 +30,7 @@
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 18px; padding-top: 14px; border-top: 1px solid var(--border-hairline);" class="font-mono">
             <div>
                 <span style="font-size: 0.65rem; color: var(--text-tertiary); letter-spacing: 0.1em; text-transform: uppercase;">TRAJECTORY</span>
-                <div id="selectedFlightRoute" style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary); margin-top: 2px;">DEL → BOM</div>
+                <div id="selectedFlightRoute" style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary); margin-top: 2px;">—</div>
             </div>
             <div>
                 <span style="font-size: 0.65rem; color: var(--text-tertiary); letter-spacing: 0.1em; text-transform: uppercase;">DEPARTURE TIME</span>
@@ -56,15 +56,15 @@
         <form id="compareRouteForm" class="compare-form-row" onsubmit="return false;" style="display: flex; gap: 20px; align-items: flex-end; flex-wrap: wrap;">
             <div style="flex: 1; min-width: 180px;">
                 <label for="compareOrigin" class="form-label font-mono">ORIGIN (IATA)</label>
-                <input type="text" id="compareOrigin" class="form-input font-mono" placeholder="DEL" value="DEL" maxlength="3" required style="text-transform: uppercase;">
+                <input type="text" id="compareOrigin" class="form-input font-mono" placeholder="Enter origin city or airport" value="" maxlength="3" required style="text-transform: uppercase;">
             </div>
             <div style="flex: 1; min-width: 180px;">
                 <label for="compareDestination" class="form-label font-mono">DESTINATION (IATA)</label>
-                <input type="text" id="compareDestination" class="form-input font-mono" placeholder="BOM" value="BOM" maxlength="3" required style="text-transform: uppercase;">
+                <input type="text" id="compareDestination" class="form-input font-mono" placeholder="Enter destination city or airport" value="" maxlength="3" required style="text-transform: uppercase;">
             </div>
             <div style="flex: 1.2; min-width: 200px;">
                 <label for="compareDate" class="form-label font-mono">TRAVEL DATE</label>
-                <input type="date" id="compareDate" class="form-input font-mono" required>
+                <input type="date" id="compareDate" class="form-input font-mono" placeholder="Select departure date" required>
             </div>
             <button type="submit" id="executeCompareBtn" class="primary-btn" style="height: 48px; padding: 0 28px; white-space: nowrap;">
                 <span id="compareBtnSpinner" class="btn-loader" style="display: none;"></span>
@@ -80,12 +80,12 @@
             <span class="font-mono" style="font-size: 0.72rem; letter-spacing: 0.1em; color: var(--text-secondary);">SURVEILLED PROVIDERS:</span>
         </div>
         <div id="providerChips" style="display: flex; gap: 10px; flex-wrap: wrap;">
-            <span class="telemetry-pill">Google Flights</span>
+            <span class="telemetry-pill">FlightAPI</span>
+            <span class="telemetry-pill">SerpAPI</span>
             <span class="telemetry-pill">Amadeus GDS</span>
             <span class="telemetry-pill">Expedia</span>
             <span class="telemetry-pill">MakeMyTrip</span>
             <span class="telemetry-pill">Cleartrip</span>
-            <span class="telemetry-pill">EaseMyTrip</span>
             <span class="telemetry-pill">Direct Airlines</span>
         </div>
     </div>
@@ -134,7 +134,7 @@
                     Simultaneous real-time rates from GDS, aggregators, and airlines.
                 </p>
             </div>
-            <span id="routeComparisonLabel" class="font-mono text-gold" style="font-size: 0.76rem;">DEL → BOM</span>
+            <span id="routeComparisonLabel" class="font-mono text-gold" style="font-size: 0.76rem;">—</span>
         </div>
 
         <div class="comparison-table-wrapper" style="overflow-x: auto;">
@@ -216,7 +216,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }).filter(Boolean).join('');
             } else {
                 providerContainer.innerHTML = `
-                    <span class="telemetry-pill">Google Flights</span>
+                    <span class="telemetry-pill">FlightAPI</span>
+                    <span class="telemetry-pill">SerpAPI</span>
                     <span class="telemetry-pill">Amadeus GDS</span>
                     <span class="telemetry-pill">Expedia</span>
                     <span class="telemetry-pill">MakeMyTrip</span>
@@ -268,8 +269,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const flightNoEl = document.getElementById('selectedFlightNo');
 
         const airline = selectedFlight.airline || 'Selected Carrier';
-        const depAirport = selectedFlight.departure_airport || paramDep || 'DEL';
-        const arrAirport = selectedFlight.arrival_airport || paramArr || 'BOM';
+        const depAirport = selectedFlight.departure_airport || paramDep || '';
+        const arrAirport = selectedFlight.arrival_airport || paramArr || '';
         const flightNo = selectedFlight.flight_number || selectedFlight.segments?.[0]?.flight_number || `${airline} Flight`;
 
         if (titleEl) titleEl.textContent = `${airline} (${flightNo})`;
@@ -370,8 +371,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Apply Sorting
         filtered.sort((a, b) => {
-            if (currentSort === 'price_asc') return Number(a.price) - Number(b.price);
-            if (currentSort === 'price_desc') return Number(b.price) - Number(a.price);
+            if (currentSort === 'price_asc') {
+                const pA = (!isNaN(Number(a.price)) && Number(a.price) > 0) ? Number(a.price) : Infinity;
+                const pB = (!isNaN(Number(b.price)) && Number(b.price) > 0) ? Number(b.price) : Infinity;
+                return pA - pB;
+            }
+            if (currentSort === 'price_desc') {
+                const pA = (!isNaN(Number(a.price)) && Number(a.price) > 0) ? Number(a.price) : -Infinity;
+                const pB = (!isNaN(Number(b.price)) && Number(b.price) > 0) ? Number(b.price) : -Infinity;
+                return pB - pA;
+            }
             if (currentSort === 'duration_asc') return (Number(a.duration) || 9999) - (Number(b.duration) || 9999);
             return 0;
         });

@@ -1,14 +1,24 @@
 import os
 import hashlib
+from typing import Optional, Dict, Any, List
 import requests
 from dotenv import load_dotenv
 
 from services.api_guardian import (
     guardian,
     PROVIDER_SERPAPI,
+    PROVIDER_AMADEUS,
+    PROVIDER_FLIGHTAPI,
     CALLER_USER_SEARCH,
     CALLER_BACKGROUND_CHECK,
+    STATE_OPEN,
+    STATE_QUOTA_EXHAUSTED,
+    is_quota_exhausted_error,
     get_guardian_config,
+)
+from services.providers.base import (
+    ProviderQuotaExhaustedError,
+    ProviderUnavailableError,
 )
 
 
@@ -1397,7 +1407,7 @@ def _normalize_itinerary(itinerary):
         "is_simulated": False,
         "is_live": True,
         "data_status": "live",
-        "source": "Google Flights via SerpAPI"
+        "source": "SerpAPI"
     }
 
 def _raw_serpapi_fetch(params):
@@ -1406,7 +1416,7 @@ def _raw_serpapi_fetch(params):
     response = requests.get(SERPAPI_URL, params=params, timeout=timeout)
     data = response.json() if response.content else {}
 
-    if response.status_code == 429 or "search limit reached" in str(data.get("error", "")).lower():
+    if response.status_code == 429 or is_quota_exhausted_error(response.status_code, str(data.get("error", ""))):
         err = Exception(data.get("error") or "SerpAPI account search limit reached (HTTP 429)")
         setattr(err, "status_code", 429)
         setattr(err, "response", response)
@@ -1487,28 +1497,672 @@ def _get_cheapest_one_way_price(
     return min(prices) if prices else None
 
 
-def search_flights(
-    departure,
-    arrival,
-    outbound_date,
-    return_date=None,
-    travel_class=1,
-    caller_type=CALLER_USER_SEARCH,
-    force_refresh=False
+def deduplicate_flight_results(flights: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Safely deduplicate flight records representing the same actual itinerary.
+    Normalized identity built from trustworthy fields:
+    - Origin and destination IATA codes
+    - Airline and flight number
+    - Departure and arrival times
+    - Stops and segment sequence
+    - Relevant return-leg details for round trips
+
+    CRITICAL INVARIANTS:
+    1. If two records share the same route and price but have different flight numbers
+       or departure times, BOTH are strictly preserved as legitimate distinct flights.
+    2. When duplicate offers differ only by booking agent or vendor, preserve meaningful
+       vendor-price options in `comparison_offers` for the comparison feature instead
+       of creating duplicate flight cards.
+    3. Never delete legitimate flights merely because they have the same fare or airline.
+    4. Never invent flight IDs or use the fare alone as a deduplication key.
+    """
+    if not flights:
+        return []
+
+    unique_flights: List[Dict[str, Any]] = []
+    seen_map: Dict[str, Dict[str, Any]] = {}
+
+    for flight in flights:
+        if not isinstance(flight, dict):
+            continue
+
+        dep = str(flight.get("departure_airport") or "").strip().upper()
+        arr = str(flight.get("arrival_airport") or "").strip().upper()
+        airline = str(flight.get("airline") or "").strip().upper()
+        f_num = str(flight.get("flight_number") or "").strip().upper()
+        dep_time = str(flight.get("departure_time") or "").strip()
+        arr_time = str(flight.get("arrival_time") or "").strip()
+        stops = int(flight.get("stops") or 0)
+        trip_type = str(flight.get("trip_type") or "one_way").lower()
+
+        # Build connecting stops signature if segments are available
+        segments = flight.get("segments") or []
+        seg_sig = ""
+        if isinstance(segments, list) and segments:
+            seg_sig = "_".join(
+                f"{s.get('departure_airport')}-{s.get('arrival_airport')}-{s.get('flight_number')}"
+                for s in segments if isinstance(s, dict)
+            )
+
+        schedule_key = f"{dep}_{arr}_{airline}_{f_num}_{dep_time}_{arr_time}_{stops}_{trip_type}"
+        if seg_sig:
+            schedule_key += f"_segs_{seg_sig}"
+
+        if trip_type == "round_trip":
+            ret = flight.get("return") or {}
+            ret_dep = str(ret.get("departure_airport") or flight.get("return_departure_airport") or "").strip().upper()
+            ret_arr = str(ret.get("arrival_airport") or flight.get("return_arrival_airport") or "").strip().upper()
+            ret_airline = str(ret.get("airline") or flight.get("return_airline") or "").strip().upper()
+            ret_f_num = str(ret.get("flight_number") or flight.get("return_flight_number") or "").strip().upper()
+            ret_dep_time = str(ret.get("departure_time") or flight.get("return_departure_time") or "").strip()
+            ret_arr_time = str(ret.get("arrival_time") or flight.get("return_arrival_time") or "").strip()
+            schedule_key += f"__ret_{ret_dep}_{ret_arr}_{ret_airline}_{ret_f_num}_{ret_dep_time}_{ret_arr_time}"
+
+        if schedule_key in seen_map:
+            existing = seen_map[schedule_key]
+            curr_price = flight.get("price")
+            existing_price = existing.get("price")
+            if curr_price is not None and (existing_price is None or curr_price < existing_price):
+                existing["price"] = curr_price
+                if flight.get("booking_url"):
+                    existing["booking_url"] = flight["booking_url"]
+                if flight.get("source"):
+                    existing["source"] = flight["source"]
+                if flight.get("itinerary_id"):
+                    existing["itinerary_id"] = flight["itinerary_id"]
+
+            curr_comp = list(flight.get("comparison_offers") or [])
+            if flight.get("source") and curr_price is not None:
+                curr_comp.append({
+                    "provider": flight.get("source"),
+                    "provider_name": flight.get("source"),
+                    "price": curr_price,
+                    "booking_url": flight.get("booking_url") or "",
+                })
+            existing_comp = existing.setdefault("comparison_offers", [])
+            for off in curr_comp:
+                if not any((o.get("provider") == off.get("provider") or o.get("provider_name") == off.get("provider_name")) and o.get("price") == off.get("price") for o in existing_comp):
+                    existing_comp.append(off)
+        else:
+            seen_map[schedule_key] = flight
+            unique_flights.append(flight)
+
+    return unique_flights
+
+
+def _offer_to_flight_dict(offer, dep: str, arr: str, out_date: str, ret_date: Optional[str] = None) -> Dict[str, Any]:
+    f_num = offer.flight_number or f"{offer.airline} Flight"
+    # Prefer stable provider offer/itinerary ID when available
+    if getattr(offer, "offer_id", None) and str(offer.offer_id).strip():
+        itinerary_id = str(offer.offer_id).strip()
+    else:
+        itin_raw = f"{dep}_{arr}_{offer.airline}_{f_num}_{offer.departure_time}_{offer.arrival_time}_{offer.stops}"
+        itinerary_id = hashlib.md5(itin_raw.encode("utf-8")).hexdigest()[:12]
+
+    segments = offer.segments if offer.segments else [{
+        "departure_airport": dep,
+        "departure_name": f"{dep} Airport",
+        "departure_time": offer.departure_time,
+        "arrival_airport": arr,
+        "arrival_name": f"{arr} Airport",
+        "arrival_time": offer.arrival_time,
+        "airline": offer.airline,
+        "flight_number": f_num,
+        "duration": offer.duration,
+        "airline_logo": ""
+    }]
+
+    is_test_or_sim = offer.data_status in ("demonstration", "test")
+    default_source = "FlightAPI" if getattr(offer, "provider_id", "") == "flightapi" else "Amadeus GDS"
+    res = {
+        "airline": offer.airline,
+        "flight_number": f_num,
+        "itinerary_id": itinerary_id,
+        "price": int(offer.price),
+        "currency": offer.currency or "INR",
+        "duration": int(offer.duration or 0),
+        "stops": int(offer.stops or 0),
+        "departure_time": offer.departure_time,
+        "arrival_time": offer.arrival_time,
+        "departure_airport": dep,
+        "arrival_airport": arr,
+        "segments": segments,
+        "layovers": offer.layovers or [],
+        "departure_token": "",
+        "booking_token": "",
+        "is_simulated": is_test_or_sim,
+        "is_live": offer.is_live,
+        "data_status": offer.data_status,
+        "source": offer.source or default_source,
+        "booking_url": offer.booking_url or "https://www.flightapi.io",
+        "comparison_offers": list(getattr(offer, "comparison_offers", []) or []),
+    }
+    if getattr(offer, "number_of_bookable_seats", None) is not None:
+        res["bookable_seats"] = offer.number_of_bookable_seats
+
+    if ret_date or offer.trip_type == "round_trip":
+        res["trip_type"] = "round_trip"
+        outbound_leg = dict(res)
+        outbound_leg["trip_type"] = "one_way"
+
+        ret_airline = getattr(offer, "return_airline", None) or offer.airline
+        ret_duration = getattr(offer, "return_duration", None) or offer.duration
+        ret_stops = getattr(offer, "return_stops", None) if getattr(offer, "return_stops", None) is not None else offer.stops
+        ret_dep_time = getattr(offer, "return_departure_time", None) or offer.departure_time
+        ret_arr_time = getattr(offer, "return_arrival_time", None) or offer.arrival_time
+        ret_segments = getattr(offer, "return_segments", None) or segments
+        ret_layovers = getattr(offer, "return_layovers", None) or []
+        ret_f_num = getattr(offer, "return_flight_number", None) or f"{ret_airline} Return"
+
+        ret_leg = {
+            **outbound_leg,
+            "airline": ret_airline,
+            "flight_number": ret_f_num,
+            "departure_airport": arr,
+            "arrival_airport": dep,
+            "departure_time": ret_dep_time,
+            "arrival_time": ret_arr_time,
+            "duration": ret_duration,
+            "stops": ret_stops,
+            "segments": ret_segments,
+            "layovers": ret_layovers,
+            "trip_type": "one_way"
+        }
+        res["outbound"] = outbound_leg
+        res["return"] = ret_leg
+        res["return_airline"] = ret_airline
+        res["return_duration"] = ret_duration
+        res["return_stops"] = ret_stops
+        res["return_departure_time"] = ret_dep_time
+        res["return_arrival_time"] = ret_arr_time
+        res["return_departure_airport"] = arr
+        res["return_arrival_airport"] = dep
+        res["return_segments"] = ret_segments
+        res["return_layovers"] = ret_layovers
+    else:
+        res["trip_type"] = "one_way"
+    return res
+
+
+def _get_demo_flights(dep: str, arr: str, ret_date: Optional[str] = None, provider_name: str = "SerpAPI"):
+    sample_airlines = [
+        {"name": "IndiGo", "flight_no": "6E 214", "price": 4850, "duration": 130, "dep": "06:15", "arr": "08:25", "stops": 0},
+        {"name": "Air India", "flight_no": "AI 804", "price": 5420, "duration": 125, "dep": "09:30", "arr": "11:35", "stops": 0},
+        {"name": "Vistara", "flight_no": "UK 945", "price": 6190, "duration": 135, "dep": "14:00", "arr": "16:15", "stops": 0},
+        {"name": "Akasa Air", "flight_no": "QP 112", "price": 4650, "duration": 210, "dep": "17:45", "arr": "21:15", "stops": 1},
+        {"name": "SpiceJet", "flight_no": "SG 123", "price": 5100, "duration": 130, "dep": "19:10", "arr": "21:20", "stops": 0},
+    ]
+    demo_list = []
+    for item in sample_airlines:
+        itin_raw = f"{dep}_{arr}_{item['name']}_{item['flight_no']}_{item['dep']}_{item['arr']}_{item['stops']}"
+        itinerary_id = hashlib.md5(itin_raw.encode("utf-8")).hexdigest()[:12]
+        out_leg = {
+            "airline": item["name"],
+            "flight_number": item["flight_no"],
+            "itinerary_id": itinerary_id,
+            "price": item["price"],
+            "currency": "INR",
+            "duration": item["duration"],
+            "stops": item["stops"],
+            "departure_time": item["dep"],
+            "arrival_time": item["arr"],
+            "departure_airport": dep,
+            "arrival_airport": arr,
+            "segments": [{
+                "departure_airport": dep, "departure_name": f"{dep} Airport",
+                "departure_time": item["dep"], "arrival_airport": arr, "arrival_name": f"{arr} Airport",
+                "arrival_time": item["arr"], "airline": item["name"], "flight_number": item["flight_no"],
+                "duration": item["duration"], "airline_logo": ""
+            }],
+            "layovers": [] if item["stops"] == 0 else [{
+                "id": "NAG", "name": "Nagpur Airport", "duration": 45, "overnight": False
+            }],
+            "is_simulated": True,
+            "is_live": False,
+            "is_cached": False,
+            "data_status": "demonstration",
+            "source": f"Demonstration Data (Live {provider_name} Unconfigured)"
+        }
+        if not ret_date:
+            demo_list.append(out_leg)
+        else:
+            ret_itin_raw = f"{arr}_{dep}_{item['name']}_{item['flight_no']}R_15:30_17:45_{item['stops']}"
+            ret_itinerary_id = hashlib.md5(ret_itin_raw.encode("utf-8")).hexdigest()[:12]
+            ret_leg = {
+                **out_leg,
+                "flight_number": item["flight_no"] + "R",
+                "itinerary_id": ret_itinerary_id,
+                "departure_airport": arr, "arrival_airport": dep,
+                "departure_time": "15:30", "arrival_time": "17:45",
+                "segments": [{
+                    "departure_airport": arr, "departure_name": f"{arr} Airport",
+                    "departure_time": "15:30", "arrival_airport": dep, "arrival_name": f"{dep} Airport",
+                    "arrival_time": "17:45", "airline": item["name"], "flight_number": item["flight_no"] + "R",
+                    "duration": item["duration"], "airline_logo": ""
+                }],
+            }
+            roundtrip_id = hashlib.md5(f"{itinerary_id}_{ret_itinerary_id}".encode("utf-8")).hexdigest()[:12]
+            demo_list.append({
+                **out_leg,
+                "itinerary_id": roundtrip_id,
+                "trip_type": "round_trip",
+                "outbound": out_leg, "return": ret_leg,
+                "return_airline": ret_leg["airline"], "return_duration": ret_leg["duration"],
+                "return_stops": ret_leg["stops"], "return_departure_time": ret_leg["departure_time"],
+                "return_arrival_time": ret_leg["arrival_time"], "return_departure_airport": ret_leg["departure_airport"],
+                "return_arrival_airport": ret_leg["arrival_airport"], "return_segments": ret_leg["segments"],
+                "return_layovers": [], "price": item["price"] * 2 - 400,
+                "reference_outbound_price": item["price"], "reference_return_price": item["price"],
+                "reference_separate_total": item["price"] * 2,
+                "is_simulated": True,
+                "is_live": False,
+                "is_cached": False,
+                "data_status": "demonstration",
+                "source": f"Demonstration Data (Live {provider_name} Unconfigured)"
+            })
+    return sorted(demo_list, key=lambda f: f["price"])
+
+
+def _search_amadeus_flights(
+    dep: str,
+    arr: str,
+    out_date: str,
+    ret_date: Optional[str],
+    t_class: int,
+    caller_type: str,
+    route_cache_key: str,
+    force_refresh: bool
 ):
-    dep = str(departure or "").strip().upper()
-    arr = str(arrival or "").strip().upper()
-    out_date = str(outbound_date or "").strip()
-    ret_date = str(return_date).strip() if return_date else None
-    t_class = int(travel_class or 1)
+    from services.providers.amadeus_provider import AmadeusFlightProvider
+    provider = AmadeusFlightProvider()
+
+    # 1. High-Level Route Cache Check
+    if not force_refresh:
+        cached_resp = guardian.get_cached(route_cache_key)
+        if cached_resp and cached_resp.data:
+            cached_results = []
+            for item in cached_resp.data:
+                f_copy = dict(item)
+                f_copy["is_cached"] = True
+                f_copy["cached_at"] = cached_resp.cached_at
+                f_copy["age_seconds"] = cached_resp.age_seconds
+                f_copy["data_status"] = "cached"
+                f_copy["is_live"] = False
+                base_source = f_copy.get("source", "Amadeus GDS")
+                if not base_source.endswith("(Cached)"):
+                    f_copy["source"] = f"{base_source} (Cached)"
+                cached_results.append(f_copy)
+            return cached_results
+
+    # 2. Check if Amadeus credentials configured
+    if not provider.is_configured():
+        fallback_cached = guardian.get_cached(route_cache_key, allow_stale=True)
+        if fallback_cached and fallback_cached.data:
+            cached_results = []
+            for item in fallback_cached.data:
+                f_copy = dict(item)
+                f_copy["is_cached"] = True
+                f_copy["is_stale"] = True
+                f_copy["cached_at"] = fallback_cached.cached_at
+                f_copy["age_seconds"] = fallback_cached.age_seconds
+                f_copy["data_status"] = "cached"
+                f_copy["is_live"] = False
+                base_source = f_copy.get("source", "Amadeus GDS")
+                if not base_source.endswith("(Cached)"):
+                    f_copy["source"] = f"{base_source} (Cached)"
+                cached_results.append(f_copy)
+            return cached_results
+
+        if os.getenv("ALLOW_SIMULATED_FALLBACK", "").lower() in ("true", "1", "yes"):
+            return _get_demo_flights(dep, arr, ret_date, provider_name="Amadeus GDS")
+
+        raise ProviderUnavailableError(
+            "Amadeus flight search is unconfigured. Requires AMADEUS_CLIENT_ID and AMADEUS_CLIENT_SECRET in environment."
+        )
+
+    # 3. Check Circuit Breaker for Amadeus
+    c_state, cooldown_until = guardian.get_circuit_state(PROVIDER_AMADEUS)
+    if c_state in (STATE_OPEN, STATE_QUOTA_EXHAUSTED):
+        fallback_cached = guardian.get_cached(route_cache_key, allow_stale=True)
+        if fallback_cached and fallback_cached.data:
+            cached_results = []
+            for item in fallback_cached.data:
+                f_copy = dict(item)
+                f_copy["is_cached"] = True
+                f_copy["is_stale"] = True
+                f_copy["cached_at"] = fallback_cached.cached_at
+                f_copy["age_seconds"] = fallback_cached.age_seconds
+                f_copy["data_status"] = "cached"
+                f_copy["is_live"] = False
+                base_source = f_copy.get("source", "Amadeus GDS")
+                if not base_source.endswith("(Cached)"):
+                    f_copy["source"] = f"{base_source} (Cached)"
+                cached_results.append(f_copy)
+            return cached_results
+
+        cool_msg = f" (Resets: {cooldown_until})" if cooldown_until else ""
+        raise ProviderQuotaExhaustedError(
+            f"Fresh flight searches are temporarily unavailable because the upstream provider quota is exhausted{cool_msg}. Please check back later."
+        )
+
+    # 4. Check Request Budget for Amadeus
+    budget_ok, reason, _ = guardian.check_budget(PROVIDER_AMADEUS, caller_type)
+    if not budget_ok:
+        fallback_cached = guardian.get_cached(route_cache_key, allow_stale=True)
+        if fallback_cached and fallback_cached.data:
+            cached_results = []
+            for item in fallback_cached.data:
+                f_copy = dict(item)
+                f_copy["is_cached"] = True
+                f_copy["is_stale"] = True
+                f_copy["cached_at"] = fallback_cached.cached_at
+                f_copy["age_seconds"] = fallback_cached.age_seconds
+                f_copy["data_status"] = "cached"
+                f_copy["is_live"] = False
+                base_source = f_copy.get("source", "Amadeus GDS")
+                if not base_source.endswith("(Cached)"):
+                    f_copy["source"] = f"{base_source} (Cached)"
+                cached_results.append(f_copy)
+            return cached_results
+        raise ProviderQuotaExhaustedError(
+            f"Fresh flight searches are temporarily unavailable because the upstream provider request budget is exhausted ({reason}). Please check back later."
+        )
+
+    # 5. Execute search via Amadeus adapter (never falling back to SerpAPI)
+    try:
+        offers = provider.search(
+            departure=dep,
+            arrival=arr,
+            outbound_date=out_date,
+            return_date=ret_date,
+            travel_class=t_class
+        )
+    except Exception as exc:
+        fallback_cached = guardian.get_cached(route_cache_key, allow_stale=True)
+        if fallback_cached and fallback_cached.data:
+            cached_results = []
+            for item in fallback_cached.data:
+                f_copy = dict(item)
+                f_copy["is_cached"] = True
+                f_copy["is_stale"] = True
+                f_copy["cached_at"] = fallback_cached.cached_at
+                f_copy["age_seconds"] = fallback_cached.age_seconds
+                f_copy["data_status"] = "cached"
+                f_copy["is_live"] = False
+                base_source = f_copy.get("source", "Amadeus GDS")
+                if not base_source.endswith("(Cached)"):
+                    f_copy["source"] = f"{base_source} (Cached)"
+                cached_results.append(f_copy)
+            return cached_results
+
+        if os.getenv("ALLOW_SIMULATED_FALLBACK", "").lower() in ("true", "1", "yes"):
+            return _get_demo_flights(dep, arr, ret_date, provider_name="Amadeus GDS")
+
+        err_str = str(exc)
+        if is_quota_exhausted_error(0, err_str):
+            raise ProviderQuotaExhaustedError(
+                "Fresh flight searches are temporarily unavailable because the upstream provider quota has been exhausted. Please check back later."
+            )
+        raise ProviderUnavailableError(f"Fresh flight search unavailable: {err_str}")
+
+    if not offers:
+        if provider.last_status in ("rate_limited", "quota_exhausted"):
+            fallback_cached = guardian.get_cached(route_cache_key, allow_stale=True)
+            if fallback_cached and fallback_cached.data:
+                cached_results = []
+                for item in fallback_cached.data:
+                    f_copy = dict(item)
+                    f_copy["is_cached"] = True
+                    f_copy["is_stale"] = True
+                    f_copy["cached_at"] = fallback_cached.cached_at
+                    f_copy["age_seconds"] = fallback_cached.age_seconds
+                    f_copy["data_status"] = "cached"
+                    f_copy["is_live"] = False
+                    base_source = f_copy.get("source", "Amadeus GDS")
+                    if not base_source.endswith("(Cached)"):
+                        f_copy["source"] = f"{base_source} (Cached)"
+                    cached_results.append(f_copy)
+                return cached_results
+            raise ProviderQuotaExhaustedError(
+                f"Fresh flight searches are temporarily unavailable because the upstream provider quota is exhausted ({provider.last_message}). Please check back later."
+            )
+        elif provider.last_status == "error":
+            fallback_cached = guardian.get_cached(route_cache_key, allow_stale=True)
+            if fallback_cached and fallback_cached.data:
+                cached_results = []
+                for item in fallback_cached.data:
+                    f_copy = dict(item)
+                    f_copy["is_cached"] = True
+                    f_copy["is_stale"] = True
+                    f_copy["cached_at"] = fallback_cached.cached_at
+                    f_copy["age_seconds"] = fallback_cached.age_seconds
+                    f_copy["data_status"] = "cached"
+                    f_copy["is_live"] = False
+                    base_source = f_copy.get("source", "Amadeus GDS")
+                    if not base_source.endswith("(Cached)"):
+                        f_copy["source"] = f"{base_source} (Cached)"
+                    cached_results.append(f_copy)
+                return cached_results
+            raise ProviderUnavailableError(f"Fresh flight search unavailable: {provider.last_message}")
+        return []
+
+    results = []
+    for offer in offers:
+        results.append(_offer_to_flight_dict(offer, dep, arr, out_date, ret_date))
+
+    sorted_results = sorted(results, key=lambda f: f["price"])
+    cfg = get_guardian_config()
+    ttl = cfg["cache_ttl_checker"] if caller_type == CALLER_BACKGROUND_CHECK else cfg["cache_ttl_search"]
+    is_live_cache = (not provider.is_test_environment)
+    guardian.set_cached(route_cache_key, PROVIDER_AMADEUS, "search_flights", sorted_results, ttl_seconds=ttl, is_live=is_live_cache)
+    return sorted_results
+
+
+def _search_flightapi_flights(
+    dep: str,
+    arr: str,
+    out_date: str,
+    ret_date: Optional[str],
+    t_class: int,
+    caller_type: str,
+    route_cache_key: str,
+    force_refresh: bool
+):
+    from services.providers.flightapi_provider import FlightApiProvider
+    provider = FlightApiProvider()
 
     # 1. High-Level Route Cache Check (Guarantees zero upstream calls for recent repeated searches)
-    route_cache_key = guardian.build_cache_key(
-        PROVIDER_SERPAPI,
-        "search_flights",
-        {"dep": dep, "arr": arr, "outbound": out_date, "return": ret_date, "class": t_class}
-    )
+    if not force_refresh:
+        cached_resp = guardian.get_cached(route_cache_key)
+        if cached_resp and cached_resp.data:
+            cached_results = []
+            for item in cached_resp.data:
+                f_copy = dict(item)
+                f_copy["is_cached"] = True
+                f_copy["cached_at"] = cached_resp.cached_at
+                f_copy["age_seconds"] = cached_resp.age_seconds
+                f_copy["data_status"] = "cached"
+                f_copy["is_live"] = False
+                base_source = f_copy.get("source", "FlightAPI")
+                if not base_source.endswith("(Cached)"):
+                    f_copy["source"] = f"{base_source} (Cached)"
+                cached_results.append(f_copy)
+            return cached_results
 
+    # 2. Check if FlightAPI credentials configured
+    if not provider.is_configured():
+        fallback_cached = guardian.get_cached(route_cache_key, allow_stale=True)
+        if fallback_cached and fallback_cached.data:
+            cached_results = []
+            for item in fallback_cached.data:
+                f_copy = dict(item)
+                f_copy["is_cached"] = True
+                f_copy["is_stale"] = True
+                f_copy["cached_at"] = fallback_cached.cached_at
+                f_copy["age_seconds"] = fallback_cached.age_seconds
+                f_copy["data_status"] = "cached"
+                f_copy["is_live"] = False
+                base_source = f_copy.get("source", "FlightAPI")
+                if not base_source.endswith("(Cached)"):
+                    f_copy["source"] = f"{base_source} (Cached)"
+                cached_results.append(f_copy)
+            return cached_results
+
+        if os.getenv("ALLOW_SIMULATED_FALLBACK", "").lower() in ("true", "1", "yes"):
+            return _get_demo_flights(dep, arr, ret_date, provider_name="FlightAPI")
+
+        raise ProviderUnavailableError(
+            "FlightAPI flight search is unconfigured. Requires FLIGHTAPI_API_KEY in environment."
+        )
+
+    # 3. Check Circuit Breaker for FlightAPI
+    c_state, cooldown_until = guardian.get_circuit_state(PROVIDER_FLIGHTAPI)
+    if c_state in (STATE_OPEN, STATE_QUOTA_EXHAUSTED):
+        fallback_cached = guardian.get_cached(route_cache_key, allow_stale=True)
+        if fallback_cached and fallback_cached.data:
+            cached_results = []
+            for item in fallback_cached.data:
+                f_copy = dict(item)
+                f_copy["is_cached"] = True
+                f_copy["is_stale"] = True
+                f_copy["cached_at"] = fallback_cached.cached_at
+                f_copy["age_seconds"] = fallback_cached.age_seconds
+                f_copy["data_status"] = "cached"
+                f_copy["is_live"] = False
+                base_source = f_copy.get("source", "FlightAPI")
+                if not base_source.endswith("(Cached)"):
+                    f_copy["source"] = f"{base_source} (Cached)"
+                cached_results.append(f_copy)
+            return cached_results
+
+        cool_msg = f" (Resets: {cooldown_until})" if cooldown_until else ""
+        raise ProviderQuotaExhaustedError(
+            f"Fresh flight searches are temporarily unavailable because the upstream provider quota is exhausted{cool_msg}. Please check back later."
+        )
+
+    # 4. Check Request Budget for FlightAPI
+    budget_ok, reason, _ = guardian.check_budget(PROVIDER_FLIGHTAPI, caller_type)
+    if not budget_ok:
+        fallback_cached = guardian.get_cached(route_cache_key, allow_stale=True)
+        if fallback_cached and fallback_cached.data:
+            cached_results = []
+            for item in fallback_cached.data:
+                f_copy = dict(item)
+                f_copy["is_cached"] = True
+                f_copy["is_stale"] = True
+                f_copy["cached_at"] = fallback_cached.cached_at
+                f_copy["age_seconds"] = fallback_cached.age_seconds
+                f_copy["data_status"] = "cached"
+                f_copy["is_live"] = False
+                base_source = f_copy.get("source", "FlightAPI")
+                if not base_source.endswith("(Cached)"):
+                    f_copy["source"] = f"{base_source} (Cached)"
+                cached_results.append(f_copy)
+            return cached_results
+        raise ProviderQuotaExhaustedError(
+            f"Fresh flight searches are temporarily unavailable because the upstream provider request budget is exhausted ({reason}). Please check back later."
+        )
+
+    # 5. Execute search via FlightAPI adapter
+    try:
+        offers = provider.search(
+            departure=dep,
+            arrival=arr,
+            outbound_date=out_date,
+            return_date=ret_date,
+            travel_class=t_class
+        )
+    except Exception as exc:
+        fallback_cached = guardian.get_cached(route_cache_key, allow_stale=True)
+        if fallback_cached and fallback_cached.data:
+            cached_results = []
+            for item in fallback_cached.data:
+                f_copy = dict(item)
+                f_copy["is_cached"] = True
+                f_copy["is_stale"] = True
+                f_copy["cached_at"] = fallback_cached.cached_at
+                f_copy["age_seconds"] = fallback_cached.age_seconds
+                f_copy["data_status"] = "cached"
+                f_copy["is_live"] = False
+                base_source = f_copy.get("source", "FlightAPI")
+                if not base_source.endswith("(Cached)"):
+                    f_copy["source"] = f"{base_source} (Cached)"
+                cached_results.append(f_copy)
+            return cached_results
+
+        if os.getenv("ALLOW_SIMULATED_FALLBACK", "").lower() in ("true", "1", "yes"):
+            return _get_demo_flights(dep, arr, ret_date, provider_name="FlightAPI")
+
+        err_str = str(exc)
+        if is_quota_exhausted_error(0, err_str):
+            raise ProviderQuotaExhaustedError(
+                "Fresh flight searches are temporarily unavailable because the upstream provider quota has been exhausted. Please check back later."
+            )
+        raise ProviderUnavailableError(f"Fresh flight search unavailable: {err_str}")
+
+    if not offers:
+        if provider.last_status in ("rate_limited", "quota_exhausted"):
+            fallback_cached = guardian.get_cached(route_cache_key, allow_stale=True)
+            if fallback_cached and fallback_cached.data:
+                cached_results = []
+                for item in fallback_cached.data:
+                    f_copy = dict(item)
+                    f_copy["is_cached"] = True
+                    f_copy["is_stale"] = True
+                    f_copy["cached_at"] = fallback_cached.cached_at
+                    f_copy["age_seconds"] = fallback_cached.age_seconds
+                    f_copy["data_status"] = "cached"
+                    f_copy["is_live"] = False
+                    base_source = f_copy.get("source", "FlightAPI")
+                    if not base_source.endswith("(Cached)"):
+                        f_copy["source"] = f"{base_source} (Cached)"
+                    cached_results.append(f_copy)
+                return cached_results
+            raise ProviderQuotaExhaustedError(
+                f"Fresh flight searches are temporarily unavailable because the upstream provider quota is exhausted ({provider.last_message}). Please check back later."
+            )
+        elif provider.last_status == "error":
+            fallback_cached = guardian.get_cached(route_cache_key, allow_stale=True)
+            if fallback_cached and fallback_cached.data:
+                cached_results = []
+                for item in fallback_cached.data:
+                    f_copy = dict(item)
+                    f_copy["is_cached"] = True
+                    f_copy["is_stale"] = True
+                    f_copy["cached_at"] = fallback_cached.cached_at
+                    f_copy["age_seconds"] = fallback_cached.age_seconds
+                    f_copy["data_status"] = "cached"
+                    f_copy["is_live"] = False
+                    base_source = f_copy.get("source", "FlightAPI")
+                    if not base_source.endswith("(Cached)"):
+                        f_copy["source"] = f"{base_source} (Cached)"
+                    cached_results.append(f_copy)
+                return cached_results
+            raise ProviderUnavailableError(f"Fresh flight search unavailable: {provider.last_message}")
+        return []
+
+    results = []
+    for offer in offers:
+        results.append(_offer_to_flight_dict(offer, dep, arr, out_date, ret_date))
+
+    sorted_results = sorted(results, key=lambda f: f["price"])
+    cfg = get_guardian_config()
+    ttl = cfg["cache_ttl_checker"] if caller_type == CALLER_BACKGROUND_CHECK else cfg["cache_ttl_search"]
+    guardian.set_cached(route_cache_key, PROVIDER_FLIGHTAPI, "search_flights", sorted_results, ttl_seconds=ttl, is_live=True)
+    return sorted_results
+
+
+def _search_serpapi_flights(
+    dep: str,
+    arr: str,
+    out_date: str,
+    ret_date: Optional[str],
+    t_class: int,
+    caller_type: str,
+    route_cache_key: str,
+    force_refresh: bool
+):
+    # 1. High-Level Route Cache Check (Guarantees zero upstream calls for recent repeated searches)
     if not force_refresh:
         cached_resp = guardian.get_cached(route_cache_key)
         if cached_resp and cached_resp.data:
@@ -1521,93 +2175,45 @@ def search_flights(
                 f_copy["age_seconds"] = cached_resp.age_seconds
                 f_copy["data_status"] = "cached"
                 f_copy["is_live"] = False
-                f_copy["source"] = f"{f_copy.get('source', 'Google Flights via SerpAPI')} (Cached)"
+                base_source = f_copy.get("source", "SerpAPI")
+                if not base_source.endswith("(Cached)"):
+                    f_copy["source"] = f"{base_source} (Cached)"
                 cached_results.append(f_copy)
             return cached_results
 
     api_key = os.getenv("SERPAPI_KEY")
 
-    def _get_demo_flights():
-        sample_airlines = [
-            {"name": "IndiGo", "flight_no": "6E 214", "price": 4850, "duration": 130, "dep": "06:15", "arr": "08:25", "stops": 0},
-            {"name": "Air India", "flight_no": "AI 804", "price": 5420, "duration": 125, "dep": "09:30", "arr": "11:35", "stops": 0},
-            {"name": "Vistara", "flight_no": "UK 945", "price": 6190, "duration": 135, "dep": "14:00", "arr": "16:15", "stops": 0},
-            {"name": "Akasa Air", "flight_no": "QP 112", "price": 4650, "duration": 210, "dep": "17:45", "arr": "21:15", "stops": 1},
-            {"name": "SpiceJet", "flight_no": "SG 123", "price": 5100, "duration": 130, "dep": "19:10", "arr": "21:20", "stops": 0},
-        ]
-        demo_list = []
-        for item in sample_airlines:
-            itin_raw = f"{dep}_{arr}_{item['name']}_{item['flight_no']}_{item['dep']}_{item['arr']}_{item['stops']}"
-            itinerary_id = hashlib.md5(itin_raw.encode("utf-8")).hexdigest()[:12]
-            out_leg = {
-                "airline": item["name"],
-                "flight_number": item["flight_no"],
-                "itinerary_id": itinerary_id,
-                "price": item["price"],
-                "currency": "INR",
-                "duration": item["duration"],
-                "stops": item["stops"],
-                "departure_time": item["dep"],
-                "arrival_time": item["arr"],
-                "departure_airport": dep,
-                "arrival_airport": arr,
-                "segments": [{
-                    "departure_airport": dep, "departure_name": f"{dep} Airport",
-                    "departure_time": item["dep"], "arrival_airport": arr, "arrival_name": f"{arr} Airport",
-                    "arrival_time": item["arr"], "airline": item["name"], "flight_number": item["flight_no"],
-                    "duration": item["duration"], "airline_logo": ""
-                }],
-                "layovers": [] if item["stops"] == 0 else [{
-                    "id": "NAG", "name": "Nagpur Airport", "duration": 45, "overnight": False
-                }],
-                "is_simulated": True,
-                "is_live": False,
-                "is_cached": False,
-                "data_status": "demonstration",
-                "source": "Demonstration Data (Live SerpAPI Unconfigured)"
-            }
-            if not ret_date:
-                demo_list.append(out_leg)
-            else:
-                ret_itin_raw = f"{arr}_{dep}_{item['name']}_{item['flight_no']}R_15:30_17:45_{item['stops']}"
-                ret_itinerary_id = hashlib.md5(ret_itin_raw.encode("utf-8")).hexdigest()[:12]
-                ret_leg = {
-                    **out_leg,
-                    "flight_number": item["flight_no"] + "R",
-                    "itinerary_id": ret_itinerary_id,
-                    "departure_airport": arr, "arrival_airport": dep,
-                    "departure_time": "15:30", "arrival_time": "17:45",
-                    "segments": [{
-                        "departure_airport": arr, "departure_name": f"{arr} Airport",
-                        "departure_time": "15:30", "arrival_airport": dep, "arrival_name": f"{dep} Airport",
-                        "arrival_time": "17:45", "airline": item["name"], "flight_number": item["flight_no"] + "R",
-                        "duration": item["duration"], "airline_logo": ""
-                    }],
-                }
-                roundtrip_id = hashlib.md5(f"{itinerary_id}_{ret_itinerary_id}".encode("utf-8")).hexdigest()[:12]
-                demo_list.append({
-                    **out_leg,
-                    "itinerary_id": roundtrip_id,
-                    "trip_type": "round_trip",
-                    "outbound": out_leg, "return": ret_leg,
-                    "return_airline": ret_leg["airline"], "return_duration": ret_leg["duration"],
-                    "return_stops": ret_leg["stops"], "return_departure_time": ret_leg["departure_time"],
-                    "return_arrival_time": ret_leg["arrival_time"], "return_departure_airport": ret_leg["departure_airport"],
-                    "return_arrival_airport": ret_leg["arrival_airport"], "return_segments": ret_leg["segments"],
-                    "return_layovers": [], "price": item["price"] * 2 - 400,
-                    "reference_outbound_price": item["price"], "reference_return_price": item["price"],
-                    "reference_separate_total": item["price"] * 2,
-                    "is_simulated": True,
-                    "is_live": False,
-                    "is_cached": False,
-                    "data_status": "demonstration",
-                    "source": "Demonstration Data (Live SerpAPI Unconfigured)"
-                })
-        return sorted(demo_list, key=lambda f: f["price"])
+    # 2. Check Provider Quota / Circuit State
+    c_state, cooldown_until = guardian.get_circuit_state(PROVIDER_SERPAPI)
+    if c_state in (STATE_OPEN, STATE_QUOTA_EXHAUSTED):
+        fallback_cached = guardian.get_cached(route_cache_key, allow_stale=True)
+        if fallback_cached and fallback_cached.data:
+            cached_results = []
+            for item in fallback_cached.data:
+                f_copy = dict(item)
+                f_copy["is_cached"] = True
+                f_copy["is_stale"] = True
+                f_copy["cached_at"] = fallback_cached.cached_at
+                f_copy["age_seconds"] = fallback_cached.age_seconds
+                f_copy["data_status"] = "cached"
+                f_copy["is_live"] = False
+                base_source = f_copy.get("source", "SerpAPI")
+                if not base_source.endswith("(Cached)"):
+                    f_copy["source"] = f"{base_source} (Cached)"
+                cached_results.append(f_copy)
+            return cached_results
+
+        if api_key:
+            if os.getenv("ALLOW_SIMULATED_FALLBACK", "").lower() in ("true", "1", "yes"):
+                return _get_demo_flights(dep, arr, ret_date, provider_name="SerpAPI")
+            cool_msg = f" (Resets: {cooldown_until})" if cooldown_until else ""
+            raise ProviderQuotaExhaustedError(
+                f"Fresh flight searches are temporarily unavailable because the upstream provider quota is exhausted{cool_msg}. Please check back later."
+            )
 
     # Demo mode if no key provided
     if not api_key:
-        return _get_demo_flights()
+        return _get_demo_flights(dep, arr, ret_date, provider_name="SerpAPI")
 
     params = {
         "engine": "google_flights", "api_key": api_key,
@@ -1624,8 +2230,34 @@ def search_flights(
     try:
         data = _serpapi_request(params, caller_type=caller_type)
     except Exception as err:
-        print(f"SerpAPI quota notice: {err}. Using simulated flight intelligence.")
-        return _get_demo_flights()
+        # Check for stale cache fallback
+        fallback_cached = guardian.get_cached(route_cache_key, allow_stale=True)
+        if fallback_cached and fallback_cached.data:
+            cached_results = []
+            for item in fallback_cached.data:
+                f_copy = dict(item)
+                f_copy["is_cached"] = True
+                f_copy["is_stale"] = True
+                f_copy["cached_at"] = fallback_cached.cached_at
+                f_copy["age_seconds"] = fallback_cached.age_seconds
+                f_copy["data_status"] = "cached"
+                f_copy["is_live"] = False
+                base_source = f_copy.get("source", "SerpAPI")
+                if not base_source.endswith("(Cached)"):
+                    f_copy["source"] = f"{base_source} (Cached)"
+                cached_results.append(f_copy)
+            return cached_results
+
+        # When live API key is configured, never fabricate fallback fares unless explicitly configured!
+        if os.getenv("ALLOW_SIMULATED_FALLBACK", "").lower() in ("true", "1", "yes"):
+            return _get_demo_flights(dep, arr, ret_date, provider_name="SerpAPI")
+
+        err_str = str(err)
+        if is_quota_exhausted_error(0, err_str):
+            raise ProviderQuotaExhaustedError(
+                "Fresh flight searches are temporarily unavailable because the upstream provider quota has been exhausted. Please check back later."
+            )
+        raise ProviderUnavailableError(f"Fresh flight search unavailable: {err_str}")
 
     itineraries = _collect_itineraries(data)
 
@@ -1728,7 +2360,7 @@ def search_flights(
                 "is_live": True,
                 "is_cached": False,
                 "data_status": "live",
-                "source": "Google Flights via SerpAPI"
+                "source": "SerpAPI"
             })
 
     sorted_results = sorted(results, key=lambda f: f["price"])
@@ -1737,6 +2369,65 @@ def search_flights(
     ttl = cfg["cache_ttl_checker"] if caller_type == CALLER_BACKGROUND_CHECK else cfg["cache_ttl_search"]
     guardian.set_cached(route_cache_key, PROVIDER_SERPAPI, "search_flights", sorted_results, ttl_seconds=ttl, is_live=True)
     return sorted_results
+
+
+def search_flights(
+    departure,
+    arrival,
+    outbound_date,
+    return_date=None,
+    travel_class=1,
+    caller_type=CALLER_USER_SEARCH,
+    force_refresh=False
+):
+    dep = str(departure or "").strip().upper()
+    arr = str(arrival or "").strip().upper()
+    out_date = str(outbound_date or "").strip()
+    ret_date = str(return_date).strip() if return_date else None
+    t_class = int(travel_class or 1)
+
+    from services.providers import get_primary_provider
+    primary_provider = get_primary_provider()
+
+    route_cache_key = guardian.build_cache_key(
+        primary_provider.provider_id,
+        "search_flights",
+        {"dep": dep, "arr": arr, "outbound": out_date, "return": ret_date, "class": t_class}
+    )
+
+    if primary_provider.provider_id == "amadeus":
+        return _search_amadeus_flights(
+            dep=dep,
+            arr=arr,
+            out_date=out_date,
+            ret_date=ret_date,
+            t_class=t_class,
+            caller_type=caller_type,
+            route_cache_key=route_cache_key,
+            force_refresh=force_refresh
+        )
+    elif primary_provider.provider_id == "flightapi":
+        return _search_flightapi_flights(
+            dep=dep,
+            arr=arr,
+            out_date=out_date,
+            ret_date=ret_date,
+            t_class=t_class,
+            caller_type=caller_type,
+            route_cache_key=route_cache_key,
+            force_refresh=force_refresh
+        )
+
+    return _search_serpapi_flights(
+        dep=dep,
+        arr=arr,
+        out_date=out_date,
+        ret_date=ret_date,
+        t_class=t_class,
+        caller_type=caller_type,
+        route_cache_key=route_cache_key,
+        force_refresh=force_refresh
+    )
 
 
 # =========================================================
@@ -1769,6 +2460,40 @@ def search_multi_city_flights(
     """
     if not legs or len(legs) < 2:
         return []
+
+    from services.providers import get_primary_provider
+    primary_provider = get_primary_provider()
+    if primary_provider.provider_id == "flightapi":
+        num_legs = len(legs)
+        if 3 <= num_legs <= 5:
+            if primary_provider.is_configured():
+                return primary_provider.search_multi_trip(
+                    legs=legs,
+                    travel_class=travel_class,
+                    adults=adults or 1,
+                    children=children or 0,
+                    infants=infants or 0
+                )
+            elif os.getenv("ALLOW_SIMULATED_FALLBACK", "").lower() in ("true", "1", "yes"):
+                pass
+            else:
+                raise ProviderUnavailableError(
+                    "FlightAPI multi-city search is unconfigured. Requires FLIGHTAPI_API_KEY in environment."
+                )
+        elif num_legs == 2:
+            if primary_provider.is_configured():
+                raise ProviderUnavailableError(
+                    "FlightAPI multi-city endpoint strictly requires between 3 and 5 route legs as documented. "
+                    "For a 2-leg itinerary, please use Round-Trip or separate One-Way searches, or add a third flight leg."
+                )
+            elif os.getenv("ALLOW_SIMULATED_FALLBACK", "").lower() in ("true", "1", "yes"):
+                pass
+            else:
+                raise ProviderUnavailableError(
+                    "FlightAPI multi-city endpoint strictly requires between 3 and 5 route legs as documented."
+                )
+        elif num_legs > 5:
+            raise ValueError("Multi-city itineraries support a maximum of 5 flight legs.")
 
     # Demo / Intelligence generation templates
     template_carriers = [

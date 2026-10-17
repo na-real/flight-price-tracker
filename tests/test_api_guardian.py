@@ -399,7 +399,8 @@ def test_cached_results_labeled_with_real_age_and_source():
     assert resp2.age_seconds >= 0
 
 
-def test_monthly_quota_exhaustion_cannot_repeatedly_retry():
+def test_monthly_quota_exhaustion_cannot_repeatedly_retry(monkeypatch):
+    monkeypatch.setenv("SERPAPI_RESET_POLICY", "billing_cycle")
     calls = []
 
     def fail_monthly(p):

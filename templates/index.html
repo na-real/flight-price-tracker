@@ -60,6 +60,7 @@
 
     <!-- PWA Web App Manifest -->
     <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="color-scheme" content="dark light">
     <meta name="theme-color" content="#04060b">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -69,8 +70,9 @@
     <script>
         (function() {
             try {
+                var urlTheme = new URLSearchParams(window.location.search).get('theme');
                 var p = JSON.parse(localStorage.getItem('skytracker_appearance_prefs') || '{}');
-                var savedTheme = p.theme || localStorage.getItem('skytrack_theme');
+                var savedTheme = urlTheme || p.theme || localStorage.getItem('skytrack_theme');
                 if (savedTheme) {
                     document.documentElement.setAttribute('data-theme', savedTheme);
                 }
@@ -506,6 +508,7 @@
                 <form id="searchForm" novalidate>
                     <!-- Hidden fallback passengers input -->
                     <input type="hidden" id="passengers" value="1">
+                    <input type="hidden" id="tripTypeInput" name="trip_type" value="round_trip">
                     <!-- Standard Flight Inputs (One-way and Round-trip) -->
                     <div id="standardFlightInputs">
                         <div class="search-grid">
@@ -525,7 +528,7 @@
                                             <circle cx="12" cy="12" r="3"></circle>
                                         </svg>
                                     </span>
-                                    <input id="departure" type="text" placeholder="e.g. London Heathrow (LHR)"
+                                    <input id="departure" type="text" placeholder="Enter origin city or airport"
                                         autocomplete="off" required>
                                     <div id="departureSuggestions" class="airport-suggestions" role="listbox"></div>
                                 </div>
@@ -577,7 +580,7 @@
                                             <circle cx="12" cy="10" r="3"></circle>
                                         </svg>
                                     </span>
-                                    <input id="arrival" type="text" placeholder="e.g. Kansai / Tokyo (KIX)"
+                                    <input id="arrival" type="text" placeholder="Enter destination city or airport"
                                         autocomplete="off" required>
                                     <div id="arrivalSuggestions" class="airport-suggestions" role="listbox"></div>
                                 </div>
@@ -615,7 +618,7 @@
                                             <line x1="3" y1="10" x2="21" y2="10"></line>
                                         </svg>
                                     </span>
-                                    <input id="outbound_date" type="date" required min="">
+                                    <input id="outbound_date" type="date" required min="" placeholder="Select departure date" aria-label="Select departure date">
                                 </div>
                             </div>
 
@@ -636,7 +639,7 @@
                                             <line x1="3" y1="10" x2="21" y2="10"></line>
                                         </svg>
                                     </span>
-                                    <input id="return_date" type="date" min="">
+                                    <input id="return_date" type="date" min="" placeholder="Select return date" aria-label="Select return date">
                                 </div>
                             </div>
 
@@ -698,6 +701,27 @@
                     </div>
                     <h2 class="chapter-heading">Available flights</h2>
                     <p id="resultSummary" class="chapter-desc">Search to see available flights and intelligent route comparisons.</p>
+                </div>
+            </div>
+
+            <!-- FLIGHT INTELLIGENCE STATUS STRIP -->
+            <div id="flightStatusStrip" class="flight-status-strip glass-panel" style="display: none; margin-bottom: 24px;">
+                <div class="status-strip-left">
+                    <span class="status-pulse-dot" id="statusStripPulse"></span>
+                    <div class="status-route-meta">
+                        <span class="status-route-name font-mono" id="statusStripRoute"></span>
+                        <span class="status-provider-tag font-mono" id="statusStripProvider"></span>
+                    </div>
+                </div>
+                <div class="status-strip-right">
+                    <div class="status-metric-group" id="statusStripPriceGroup">
+                        <span class="metric-label font-mono">OBSERVED FARE</span>
+                        <span class="metric-value font-mono text-gold" id="statusStripPrice"></span>
+                    </div>
+                    <div class="status-metric-group" id="statusStripCacheGroup" style="display: none;">
+                        <span class="metric-label font-mono">RETRIEVAL</span>
+                        <span class="metric-value font-mono" id="statusStripCacheTime"></span>
+                    </div>
                 </div>
             </div>
 
@@ -916,21 +940,20 @@
                         <img src="/static/images/kyoto.jpg" alt="Kyoto floating pavilion sanctuary"
                             loading="lazy" class="dest-img">
                         <div class="dest-gradient-veil"></div>
-                        <span class="dest-code-badge font-mono">KIX // 35°01'N</span>
+                        <span class="dest-code-badge font-mono">KYOTO // 35°01'N</span>
                     </div>
                     <div class="destination-body">
                         <div class="dest-meta-row">
                             <span class="dest-country font-mono">JAPAN</span>
-                            <span class="dest-indicative-fare font-mono">&#8377; 42,800 · EST</span>
+                            <span class="dest-indicative-fare font-mono">Demo data — not bookable</span>
                         </div>
                         <h3 class="dest-title">Kyoto Sanctuary</h3>
                         <p class="dest-narrative">
                             A pavilion floating over tranquil mist. Bamboo whispers, timber joinery, and dawn reflections.
                         </p>
                         <div class="dest-footer">
-                            <span class="dest-flight-time font-mono">11H 40M · NONSTOP</span>
-                            <button type="button" class="btn-select-route" data-to-city="Kyoto" data-to-iata="KIX"
-                                data-from-city="London" data-from-iata="LHR">
+                            <span class="dest-flight-time font-mono">11H 40M · FLIGHT</span>
+                            <button type="button" class="btn-select-route" data-to-city="Kyoto" data-to-iata="ITM">
                                 <span>Select Route</span>
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                     stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
@@ -950,7 +973,7 @@
                     <div class="destination-body">
                         <div class="dest-meta-row">
                             <span class="dest-country font-mono">ICELAND</span>
-                            <span class="dest-indicative-fare font-mono">&#8377; 38,400 · EST</span>
+                            <span class="dest-indicative-fare font-mono">Demo data — not bookable</span>
                         </div>
                         <h3 class="dest-title">Basalt & Aurora</h3>
                         <p class="dest-narrative">
@@ -958,8 +981,7 @@
                         </p>
                         <div class="dest-footer">
                             <span class="dest-flight-time font-mono">03H 10M · DIRECT</span>
-                            <button type="button" class="btn-select-route" data-to-city="Reykjavik" data-to-iata="KEF"
-                                data-from-city="London" data-from-iata="LHR">
+                            <button type="button" class="btn-select-route" data-to-city="Reykjavik" data-to-iata="KEF">
                                 <span>Select Route</span>
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                     stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
@@ -979,7 +1001,7 @@
                     <div class="destination-body">
                         <div class="dest-meta-row">
                             <span class="dest-country font-mono">SWITZERLAND</span>
-                            <span class="dest-indicative-fare font-mono">&#8377; 51,200 · EST</span>
+                            <span class="dest-indicative-fare font-mono">Demo data — not bookable</span>
                         </div>
                         <h3 class="dest-title">Alpine Solitude</h3>
                         <p class="dest-narrative">
@@ -987,8 +1009,7 @@
                         </p>
                         <div class="dest-footer">
                             <span class="dest-flight-time font-mono">01H 45M · FLIGHT</span>
-                            <button type="button" class="btn-select-route" data-to-city="Zurich" data-to-iata="ZRH"
-                                data-from-city="London" data-from-iata="LHR">
+                            <button type="button" class="btn-select-route" data-to-city="Zurich" data-to-iata="ZRH">
                                 <span>Select Route</span>
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                     stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
@@ -1008,7 +1029,7 @@
                     <div class="destination-body">
                         <div class="dest-meta-row">
                             <span class="dest-country font-mono">ITALY</span>
-                            <span class="dest-indicative-fare font-mono">&#8377; 34,900 · EST</span>
+                            <span class="dest-indicative-fare font-mono">Demo data — not bookable</span>
                         </div>
                         <h3 class="dest-title">Cobalt Terraces</h3>
                         <p class="dest-narrative">
@@ -1016,8 +1037,7 @@
                         </p>
                         <div class="dest-footer">
                             <span class="dest-flight-time font-mono">02H 35M · DIRECT</span>
-                            <button type="button" class="btn-select-route" data-to-city="Naples" data-to-iata="NAP"
-                                data-from-city="London" data-from-iata="LHR">
+                            <button type="button" class="btn-select-route" data-to-city="Naples" data-to-iata="NAP">
                                 <span>Select Route</span>
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                     stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
@@ -1423,11 +1443,11 @@
     </div>
 
     <!-- JAVASCRIPT MODULES -->
-    <script src="/static/scene3d.js"></script>
-    <script src="/static/atmosphere.js"></script>
-    <script src="/static/backdrops.js"></script>
-    <script src="/static/appearance.js"></script>
-    <script src="/static/app.js"></script>
+    <script src="/static/scene3d.js?v={{ asset_version }}"></script>
+    <script src="/static/atmosphere.js?v={{ asset_version }}"></script>
+    <script src="/static/backdrops.js?v={{ asset_version }}"></script>
+    <script src="/static/appearance.js?v={{ asset_version }}"></script>
+    <script src="/static/app.js?v={{ asset_version }}"></script>
 </body>
 
 </html>

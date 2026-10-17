@@ -206,10 +206,16 @@ Maintains temporal price audit chronicles for tracked routes.
 
 ## 6. Reliability & Resilience Patterns
 
-1. **Provider Aggregator Fallback Chain:**
-   - If SerpApi key is missing, network fails, or quota expires, `SerpApiProvider.search()` gracefully falls back to deterministic multi-provider calculation based on distance and route complexity.
-   - Individual provider failures in [services/providers/aggregator.py](file:///c:/Users/Vandita%20Mamgain/Downloads/flight-price-tracker/services/providers/aggregator.py) do not fail the overall search; remaining healthy providers continue to populate the comparison matrix.
-2. **Database Resilience:**
+1. **Configurable Primary Flight Search Provider (`PRIMARY_FLIGHT_PROVIDER`):**
+   - Configurable via `PRIMARY_FLIGHT_PROVIDER` environment variable (options: `serpapi` or `amadeus`, default: `serpapi`).
+   - The provider registry in [services/providers/__init__.py](file:///c:/Users/Vandita%20Mamgain/Downloads/flight-price-tracker/services/providers/__init__.py) maps strictly to genuine upstream adapters (`serpapi` -> `SerpApiFlightsProvider`, `amadeus` -> `AmadeusFlightProvider`).
+   - Misleading aliases like `google_flights` are removed; selecting SerpAPI truthfully labels results as SerpAPI, never as an independent Google Flights API.
+   - When Amadeus is selected as the primary provider, requests route through its dedicated adapter without silently falling back to SerpAPI if Amadeus fails or its quota is exhausted.
+   - When unconfigured or quota exhausted, honest unavailable responses (HTTP 503) or clearly labeled valid cached results are returned.
+2. **Provider Aggregator Comparison Matrix:**
+   - [services/providers/aggregator.py](file:///c:/Users/Vandita%20Mamgain/Downloads/flight-price-tracker/services/providers/aggregator.py) orchestrates multi-provider searches across SerpAPI, Amadeus GDS, airline direct channels, and OTA partners.
+   - Individual provider failures do not fail the overall search; remaining healthy providers continue to populate the comparison matrix.
+3. **Database Resilience:**
    - Database operations use `try ... finally: conn.close()` to prevent connection leaks.
    - Dual-mode connection factory in [db.py](file:///c:/Users/Vandita%20Mamgain/Downloads/flight-price-tracker/db.py) transparently selects PostgreSQL when `DATABASE_URL` is set, or local SQLite otherwise.
    - **Production Requirement:** PostgreSQL (`DATABASE_URL`) is strictly mandatory for production deployments (Render/cloud containers) because host container filesystems are ephemeral and SQLite files are wiped upon dyno restart or redeployment. SQLite is strictly reserved for local development and unit testing. Schema initialization uses non-destructive `CREATE TABLE IF NOT EXISTS` preserving all existing production data.

@@ -31,6 +31,7 @@
 
         <!-- SEARCH FORM -->
         <form id="flightSearchForm" class="flight-search-form" autocomplete="off" onsubmit="return false;">
+            <input type="hidden" id="tripTypeInput" name="trip_type" value="one_way">
             <!-- Standard One-Way & Round-Trip Layout -->
             <div id="standardTripFields" class="standard-trip-fields">
                 <div class="route-inputs-group">
@@ -45,7 +46,7 @@
                                 </svg>
                             </span>
                             <input type="text" id="departure" name="departure" class="airport-input"
-                                placeholder="City or IATA (e.g. DEL, London)" required aria-required="true"
+                                placeholder="Enter origin city or airport" required aria-required="true"
                                 aria-autocomplete="list" aria-controls="departureAutocomplete">
                         </div>
                         <div id="departureAutocomplete" class="autocomplete-dropdown" role="listbox" aria-label="Origin Airport Suggestions"></div>
@@ -72,7 +73,7 @@
                                 </svg>
                             </span>
                             <input type="text" id="arrival" name="arrival" class="airport-input"
-                                placeholder="City or IATA (e.g. BOM, Tokyo)" required aria-required="true"
+                                placeholder="Enter destination city or airport" required aria-required="true"
                                 aria-autocomplete="list" aria-controls="arrivalAutocomplete">
                         </div>
                         <div id="arrivalAutocomplete" class="autocomplete-dropdown" role="listbox" aria-label="Destination Airport Suggestions"></div>
@@ -83,13 +84,13 @@
                     <!-- Outbound Date -->
                     <div class="date-input-wrapper">
                         <label for="outbound_date" class="field-label font-mono">DEPARTURE DATE</label>
-                        <input type="date" id="outbound_date" name="outbound_date" class="date-input font-mono" required aria-required="true">
+                        <input type="date" id="outbound_date" name="outbound_date" class="date-input font-mono" required aria-required="true" placeholder="Select departure date">
                     </div>
 
                     <!-- Return Date (Round-Trip) -->
                     <div class="date-input-wrapper return-date-wrap" id="returnDateWrap" style="display: none;">
                         <label for="return_date" class="field-label font-mono">RETURN DATE</label>
-                        <input type="date" id="return_date" name="return_date" class="date-input font-mono">
+                        <input type="date" id="return_date" name="return_date" class="date-input font-mono" placeholder="Select return date">
                     </div>
 
                     <!-- Passenger & Cabin Class Selector -->
@@ -154,16 +155,22 @@
 
             <!-- Multi-City Layout Builder -->
             <div id="multiCityFields" class="multi-city-fields" style="display: none;">
+                <div class="multi-city-header">
+                    <div class="multi-city-info">
+                        <span class="multi-city-title font-mono text-gold">FLIGHT TRAJECTORY LEGS</span>
+                        <span class="multi-city-counter font-mono" id="multiCityLegCountBadge">2 of 5 legs</span>
+                    </div>
+                    <button type="button" id="addLegBtn" class="cta-secondary add-leg-btn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        <span>Add Trajectory Leg (Max 5)</span>
+                    </button>
+                </div>
                 <div id="multiCityLegsContainer" class="multi-city-legs-container">
                     <!-- Legs generated dynamically via app.js -->
                 </div>
-                <button type="button" id="addLegBtn" class="cta-secondary add-leg-btn">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="12" y1="5" x2="12" y2="19"></line>
-                        <line x1="5" y1="12" x2="19" y2="12"></line>
-                    </svg>
-                    <span>Add Trajectory Leg (Max 5)</span>
-                </button>
             </div>
 
             <!-- Search Action CTA -->
@@ -188,6 +195,27 @@
             <line x1="12" y1="16" x2="12.01" y2="16"></line>
         </svg>
         <span id="searchErrorText">Unable to retrieve flight trajectories. Please check parameters.</span>
+    </div>
+
+    <!-- FLIGHT INTELLIGENCE STATUS STRIP -->
+    <div id="flightStatusStrip" class="flight-status-strip glass-panel" style="display: none; margin-top: 24px;">
+        <div class="status-strip-left">
+            <span class="status-pulse-dot" id="statusStripPulse"></span>
+            <div class="status-route-meta">
+                <span class="status-route-name font-mono" id="statusStripRoute"></span>
+                <span class="status-provider-tag font-mono" id="statusStripProvider"></span>
+            </div>
+        </div>
+        <div class="status-strip-right">
+            <div class="status-metric-group" id="statusStripPriceGroup">
+                <span class="metric-label font-mono">OBSERVED FARE</span>
+                <span class="metric-value font-mono text-gold" id="statusStripPrice"></span>
+            </div>
+            <div class="status-metric-group" id="statusStripCacheGroup" style="display: none;">
+                <span class="metric-label font-mono">RETRIEVAL</span>
+                <span class="metric-value font-mono" id="statusStripCacheTime"></span>
+            </div>
+        </div>
     </div>
 
     <!-- FILTER & SORT CONTROLS BAR -->
@@ -249,11 +277,11 @@
         </div>
         <form id="trackRouteForm" class="track-form" onsubmit="return false;">
             <div class="modal-route-preview font-mono" id="modalRouteSummary">
-                DEL → BOM · 2026-11-15
+                Route Surveillance
             </div>
             <div class="form-group">
                 <label for="trackTargetPrice" class="form-label">TARGET PRICE (INR)</label>
-                <input type="number" id="trackTargetPrice" class="form-input font-mono" placeholder="e.g. 4500" required>
+                <input type="number" id="trackTargetPrice" class="form-input font-mono" placeholder="4500" required>
             </div>
             <div class="form-group">
                 <label for="trackEmail" class="form-label">NOTIFICATION EMAIL</label>
@@ -304,14 +332,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (outDate) {
         const outDateInput = document.getElementById('outbound_date');
         if (outDateInput) outDateInput.value = outDate;
-    } else {
-        // Set default 14 days out if not specified
-        const outDateInput = document.getElementById('outbound_date');
-        if (outDateInput && !outDateInput.value) {
-            const target = new Date();
-            target.setDate(target.getDate() + 14);
-            outDateInput.value = target.toISOString().split('T')[0];
-        }
     }
     if (retDate) {
         const retDateInput = document.getElementById('return_date');

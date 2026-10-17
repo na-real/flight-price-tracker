@@ -226,4 +226,4 @@ def validate_multi_city_legs(legs, allow_past=False):
             "outbound_date": date_str
         })
 
-    return cleaned_legs
+    return cleaned_legs

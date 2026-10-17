@@ -234,33 +234,20 @@
     destinationBtns.forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.preventDefault();
-            const fromIata = btn.dataset.fromIata || 'LHR';
-            const fromCity = btn.dataset.fromCity || 'London';
             const toIata = btn.dataset.toIata;
             const toCity = btn.dataset.toCity;
 
             const departureInput = document.getElementById('departure');
             const arrivalInput = document.getElementById('arrival');
 
-            if (departureInput) {
-                departureInput.value = `${fromCity} (${fromIata})`;
-                departureInput.dataset.iata = fromIata;
-                departureInput.dataset.city = fromCity;
-            }
-
+            // Set destination only. Origin must remain empty by default for user entry.
             if (arrivalInput && toIata) {
                 arrivalInput.value = `${toCity} (${toIata})`;
                 arrivalInput.dataset.iata = toIata;
                 arrivalInput.dataset.city = toCity;
             }
 
-            // Set departure date to 14 days from now if blank
-            const outboundDateInput = document.getElementById('outbound_date');
-            if (outboundDateInput && !outboundDateInput.value) {
-                const targetDate = new Date();
-                targetDate.setDate(targetDate.getDate() + 14);
-                outboundDateInput.value = targetDate.toISOString().split('T')[0];
-            }
+            // Focus departure or outbound date if blank, without silently populating demo dates
 
             // Smooth scroll to the search console
             const searchSection = document.getElementById('search');

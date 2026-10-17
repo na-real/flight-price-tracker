@@ -55,7 +55,7 @@ def db():
         return conn
 
     # Local development: SQLite
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30.0)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -85,7 +85,8 @@ def init_db():
                 lowest_price DOUBLE PRECISION,
                 last_price DOUBLE PRECISION,
                 created_at TEXT NOT NULL,
-                target_alert_sent INTEGER DEFAULT 0
+                target_alert_sent INTEGER DEFAULT 0,
+                last_interrupted_at TEXT
             )
         """)
 
@@ -168,6 +169,111 @@ def init_db():
             )
         """)
 
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS api_reservations (
+                reservation_id TEXT PRIMARY KEY,
+                provider_id TEXT NOT NULL,
+                endpoint TEXT NOT NULL,
+                caller_type TEXT NOT NULL,
+                priority INTEGER DEFAULT 2,
+                cost_units INTEGER DEFAULT 1,
+                billing_unit TEXT DEFAULT 'credits',
+                state TEXT NOT NULL,
+                idempotency_key TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                metadata_json TEXT
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS api_alerts_log (
+                id BIGSERIAL PRIMARY KEY,
+                alert_type TEXT NOT NULL,
+                provider_id TEXT NOT NULL,
+                severity TEXT NOT NULL,
+                message TEXT NOT NULL,
+                details_json TEXT,
+                sent_at TEXT NOT NULL
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS api_operator_audit (
+                id BIGSERIAL PRIMARY KEY,
+                operator_id TEXT NOT NULL,
+                action TEXT NOT NULL,
+                provider_id TEXT,
+                details_json TEXT,
+                created_at TEXT NOT NULL
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS incidents (
+                id BIGSERIAL PRIMARY KEY,
+                incident_id TEXT UNIQUE NOT NULL,
+                fingerprint TEXT NOT NULL,
+                title TEXT NOT NULL,
+                subsystem TEXT NOT NULL,
+                category TEXT NOT NULL,
+                severity TEXT NOT NULL,
+                status TEXT NOT NULL,
+                error_type TEXT,
+                sanitized_message TEXT,
+                sanitized_traceback TEXT,
+                first_seen_at TEXT NOT NULL,
+                last_seen_at TEXT NOT NULL,
+                occurrences INTEGER DEFAULT 1,
+                attempts_count INTEGER DEFAULT 0,
+                max_attempts INTEGER DEFAULT 2,
+                needs_human_approval INTEGER DEFAULT 0,
+                resolution_notes TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS incident_transitions (
+                id BIGSERIAL PRIMARY KEY,
+                incident_id TEXT NOT NULL,
+                from_state TEXT NOT NULL,
+                to_state TEXT NOT NULL,
+                reason TEXT,
+                actor TEXT DEFAULT 'self_healing_agent',
+                created_at TEXT NOT NULL
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS incident_repairs (
+                id BIGSERIAL PRIMARY KEY,
+                incident_id TEXT NOT NULL,
+                attempt_number INTEGER NOT NULL,
+                plan_description TEXT,
+                target_files TEXT,
+                patch_diff TEXT,
+                verification_output TEXT,
+                success INTEGER DEFAULT 0,
+                rolled_back INTEGER DEFAULT 0,
+                created_at TEXT NOT NULL
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS incident_escalations (
+                id BIGSERIAL PRIMARY KEY,
+                incident_id TEXT NOT NULL,
+                recipient TEXT NOT NULL,
+                subject TEXT NOT NULL,
+                status TEXT NOT NULL,
+                error_detail TEXT,
+                sent_at TEXT NOT NULL
+            )
+        """)
+
     else:
         # SQLite
         conn.execute("""
@@ -182,7 +288,8 @@ def init_db():
                 lowest_price REAL,
                 last_price REAL,
                 created_at TEXT NOT NULL,
-                target_alert_sent INTEGER DEFAULT 0
+                target_alert_sent INTEGER DEFAULT 0,
+                last_interrupted_at TEXT
             )
         """)
 
@@ -265,8 +372,129 @@ def init_db():
             )
         """)
 
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS api_reservations (
+                reservation_id TEXT PRIMARY KEY,
+                provider_id TEXT NOT NULL,
+                endpoint TEXT NOT NULL,
+                caller_type TEXT NOT NULL,
+                priority INTEGER DEFAULT 2,
+                cost_units INTEGER DEFAULT 1,
+                billing_unit TEXT DEFAULT 'credits',
+                state TEXT NOT NULL,
+                idempotency_key TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                metadata_json TEXT
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS api_alerts_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                alert_type TEXT NOT NULL,
+                provider_id TEXT NOT NULL,
+                severity TEXT NOT NULL,
+                message TEXT NOT NULL,
+                details_json TEXT,
+                sent_at TEXT NOT NULL
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS api_operator_audit (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                operator_id TEXT NOT NULL,
+                action TEXT NOT NULL,
+                provider_id TEXT,
+                details_json TEXT,
+                created_at TEXT NOT NULL
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS incidents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                incident_id TEXT UNIQUE NOT NULL,
+                fingerprint TEXT NOT NULL,
+                title TEXT NOT NULL,
+                subsystem TEXT NOT NULL,
+                category TEXT NOT NULL,
+                severity TEXT NOT NULL,
+                status TEXT NOT NULL,
+                error_type TEXT,
+                sanitized_message TEXT,
+                sanitized_traceback TEXT,
+                first_seen_at TEXT NOT NULL,
+                last_seen_at TEXT NOT NULL,
+                occurrences INTEGER DEFAULT 1,
+                attempts_count INTEGER DEFAULT 0,
+                max_attempts INTEGER DEFAULT 2,
+                needs_human_approval INTEGER DEFAULT 0,
+                resolution_notes TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS incident_transitions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                incident_id TEXT NOT NULL,
+                from_state TEXT NOT NULL,
+                to_state TEXT NOT NULL,
+                reason TEXT,
+                actor TEXT DEFAULT 'self_healing_agent',
+                created_at TEXT NOT NULL
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS incident_repairs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                incident_id TEXT NOT NULL,
+                attempt_number INTEGER NOT NULL,
+                plan_description TEXT,
+                target_files TEXT,
+                patch_diff TEXT,
+                verification_output TEXT,
+                success INTEGER DEFAULT 0,
+                rolled_back INTEGER DEFAULT 0,
+                created_at TEXT NOT NULL
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS incident_escalations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                incident_id TEXT NOT NULL,
+                recipient TEXT NOT NULL,
+                subject TEXT NOT NULL,
+                status TEXT NOT NULL,
+                error_detail TEXT,
+                sent_at TEXT NOT NULL
+            )
+        """)
+
+    # Indices for high-frequency quota, reservation, and incident lookups
+    for idx_stmt in (
+        "CREATE INDEX IF NOT EXISTS idx_res_prov_state ON api_reservations(provider_id, state)",
+        "CREATE INDEX IF NOT EXISTS idx_res_idemp ON api_reservations(idempotency_key)",
+        "CREATE INDEX IF NOT EXISTS idx_quota_logs_prov_time ON api_quota_logs(provider_id, created_at)",
+        "CREATE INDEX IF NOT EXISTS idx_incidents_fp_status ON incidents(fingerprint, status)",
+        "CREATE INDEX IF NOT EXISTS idx_incidents_status ON incidents(status)",
+        "CREATE INDEX IF NOT EXISTS idx_inc_trans_inc_id ON incident_transitions(incident_id)",
+        "CREATE INDEX IF NOT EXISTS idx_inc_repairs_inc_id ON incident_repairs(incident_id)",
+        "CREATE INDEX IF NOT EXISTS idx_inc_esc_inc_time ON incident_escalations(incident_id, sent_at)",
+    ):
+        try:
+            conn.execute(idx_stmt)
+        except Exception:
+            pass
+
     # Backward-compatible migrations for tracked_flights columns
-    for col in ("last_attempted_at", "last_successful_at"):
+    for col in ("last_attempted_at", "last_successful_at", "last_interrupted_at"):
         try:
             conn.execute(f"ALTER TABLE tracked_flights ADD COLUMN {col} TEXT")
         except Exception:

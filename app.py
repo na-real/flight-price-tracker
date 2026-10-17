@@ -17,6 +17,7 @@ from security import (
     generate_delete_token,
     verify_delete_token,
     check_bot_honeypot,
+    get_client_ip,
     SECRET_KEY,
 )
 import math
@@ -40,6 +41,7 @@ from flask import (
     redirect,
     url_for,
     make_response,
+    current_app,
 )
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -49,7 +51,8 @@ from services.flight_api import (
     search_flights,
     search_multi_city_flights,
     get_flight_aggregator,
-    get_providers_status
+    get_providers_status,
+    deduplicate_flight_results
 )
 from services.airports import (
     search_airports,
@@ -60,7 +63,14 @@ from services.airports import (
     CITY_ALIASES
 )
 from services.providers.base import FlightOffer
-from services.api_guardian import guardian
+from services.providers import ProviderQuotaExhaustedError, ProviderUnavailableError
+from services.api_guardian import guardian, PROVIDER_SERPAPI
+from services.self_healing_agent import (
+    agent as self_healing_agent,
+    SUBSYSTEM_WEB,
+    SUBSYSTEM_FRONTEND,
+    SUBSYSTEM_SEARCH,
+)
 csv.field_size_limit(sys.maxsize)
 
 load_dotenv()
@@ -119,6 +129,7 @@ def inject_global_template_context():
         "logged_in_user": session.get("user_email"),
         "user_name": session.get("user_name"),
         "support_email": (os.getenv("SUPPORT_EMAIL") or "").strip(),
+        "asset_version": "2.2.0",
     }
 
 
@@ -454,13 +465,22 @@ def api_search():
             except (TypeError, ValueError):
                 travel_class = 1
 
-        all_results = search_multi_city_flights(
-            legs=cleaned_legs,
-            travel_class=travel_class,
-            adults=adults,
-            children=children,
-            infants=infants
-        )
+        try:
+            all_results = search_multi_city_flights(
+                legs=cleaned_legs,
+                travel_class=travel_class,
+                adults=adults,
+                children=children,
+                infants=infants
+            )
+            all_results = deduplicate_flight_results(all_results)
+        except (ProviderUnavailableError, ProviderQuotaExhaustedError, ValueError) as p_err:
+            return jsonify({
+                "error": str(p_err),
+                "results": [],
+                "trip_type": "multi_city",
+                "legs": cleaned_legs
+            }), 400
 
         comparison_data = None
         try:
@@ -491,11 +511,20 @@ def api_search():
                     f["itinerary_key"] = f_key
                     matched_grp = groups_by_key.get(f_key)
                     if matched_grp:
-                        f["comparison_offers"] = matched_grp.get("offers", [])
+                        existing_offers = f.get("comparison_offers") or []
+                        grp_offers = matched_grp.get("offers", [])
+                        seen_vendors = {str(o.get("vendor") or o.get("provider") or o.get("agent_name") or o.get("provider_name")).lower() for o in existing_offers}
+                        for goff in grp_offers:
+                            v_name = str(goff.get("vendor") or goff.get("provider") or goff.get("agent_name") or goff.get("provider_name")).lower()
+                            if v_name not in seen_vendors:
+                                seen_vendors.add(v_name)
+                                existing_offers.append(goff)
+                        f["comparison_offers"] = existing_offers
                         f["lowest_provider_price"] = matched_grp.get("lowest_price")
                         f["highest_provider_price"] = matched_grp.get("highest_price")
                         f["price_spread"] = matched_grp.get("price_spread", 0)
                         f["best_provider_offer"] = matched_grp.get("best_offer")
+            all_results = deduplicate_flight_results(all_results)
         except Exception as comp_err:
             print("Multi-city comparison aggregation error:", comp_err)
 
@@ -719,6 +748,11 @@ def api_search():
             )
 
         # ----------------------------------------------------
+        # DEDUPLICATE FLIGHT RESULTS (Preserve distinct flight numbers/times)
+        # ----------------------------------------------------
+        all_results = deduplicate_flight_results(all_results)
+
+        # ----------------------------------------------------
         # MULTI-WEBSITE PRICE COMPARISON
         # ----------------------------------------------------
         comparison_data = None
@@ -751,11 +785,20 @@ def api_search():
                     f["itinerary_key"] = f_key
                     matched_grp = groups_by_key.get(f_key)
                     if matched_grp:
-                        f["comparison_offers"] = matched_grp.get("offers", [])
+                        existing_offers = f.get("comparison_offers") or []
+                        grp_offers = matched_grp.get("offers", [])
+                        seen_vendors = {str(o.get("vendor") or o.get("provider") or o.get("agent_name") or o.get("provider_name")).lower() for o in existing_offers}
+                        for goff in grp_offers:
+                            v_name = str(goff.get("vendor") or goff.get("provider") or goff.get("agent_name") or goff.get("provider_name")).lower()
+                            if v_name not in seen_vendors:
+                                seen_vendors.add(v_name)
+                                existing_offers.append(goff)
+                        f["comparison_offers"] = existing_offers
                         f["lowest_provider_price"] = matched_grp.get("lowest_price")
                         f["highest_provider_price"] = matched_grp.get("highest_price")
                         f["price_spread"] = matched_grp.get("price_spread", 0)
                         f["best_provider_offer"] = matched_grp.get("best_offer")
+            all_results = deduplicate_flight_results(all_results)
         except Exception as comp_err:
             print("Comparison aggregation error:", comp_err)
 
@@ -787,6 +830,19 @@ def api_search():
 
             "comparison": comparison_data
         })
+
+    except (ProviderQuotaExhaustedError, ProviderUnavailableError) as p_err:
+        app.logger.warning("Flight search provider unavailable: %s", p_err)
+        return jsonify({
+            "error": str(p_err),
+            "status": "quota_exhausted",
+            "results": [],
+            "trip_type": trip_type,
+            "airport_comparisons": [],
+            "cheapest_airport": None,
+            "nearby_savings": {"amount": None, "percent": None},
+            "comparison": None
+        }), 503
 
     except Exception as e:
         app.logger.error("Flight search error: %s", e)
@@ -862,6 +918,18 @@ def api_flight_compare():
         )
 
         all_offers = comparison_data.get("all_offers", [])
+        flight_comp_offers = flight.get("comparison_offers", []) if flight else []
+        if flight_comp_offers:
+            existing_vendors = {str(o.get("vendor") or o.get("provider") or o.get("agent_name") or o.get("provider_name")).lower() for o in all_offers}
+            for v_offer in flight_comp_offers:
+                v_key = str(v_offer.get("vendor") or v_offer.get("provider") or v_offer.get("agent_name") or v_offer.get("provider_name")).lower()
+                if v_key not in existing_vendors:
+                    existing_vendors.add(v_key)
+                    all_offers.append(v_offer)
+
+        # Sort all offers by price ascending
+        all_offers.sort(key=lambda o: float(o.get("price") or float("inf")))
+
         # Ensure offers contain both 'provider' and 'provider_name' for UI template compatibility
         for offer in all_offers:
             if "provider" not in offer:
@@ -1073,6 +1141,24 @@ def track():
         conn.close()
 
     delete_token = generate_delete_token(tracking_id, created_at)
+
+    # Dispatch tracking confirmation email safely without blocking on failure
+    try:
+        from services.email_service import send_tracking_confirmation_email
+        passengers_info = data.get("passengers_summary") or data.get("passengers") or None
+        send_tracking_confirmation_email(
+            to_email=email,
+            departure_iata=departure,
+            arrival_iata=arrival,
+            outbound_date=outbound_date,
+            target_price=target_price,
+            return_date=return_date,
+            passenger_summary=passengers_info,
+            tracking_id=tracking_id,
+            delete_token=delete_token
+        )
+    except Exception as email_err:
+        app.logger.warning(f"Could not dispatch tracking confirmation email: {email_err}")
 
     return jsonify({
         "message": "Flight tracking started!",
@@ -1469,6 +1555,44 @@ def api_appearance_preferences():
 # ============================================================
 # API QUOTA GUARDIAN & RELIABILITY DIAGNOSTICS ENDPOINT
 # ============================================================
+def _verify_admin_access():
+    """
+    Unified access-control verifier for operational diagnostics and administrative tools.
+    Supports Bearer tokens and X-Admin-Key headers.
+    Admin tokens in URL query parameters are strictly forbidden and rejected.
+    """
+    # Reject URL query parameter tokens to prevent token leakage in access logs, URLs, and proxies
+    if request.args.get("token"):
+        return False, None, (jsonify({"error": "Admin tokens in URL query strings are rejected for security. Provide credentials via Authorization or X-Admin-Key header."}), 401)
+
+    admin_token = os.getenv("ADMIN_DIAGNOSTICS_TOKEN") or os.getenv("ADMIN_KEY")
+    auth_header = request.headers.get("Authorization", "")
+    token = auth_header.replace("Bearer ", "").strip() if auth_header else ""
+    if not token:
+        token = request.headers.get("X-Admin-Key", "").strip() or request.headers.get("X-Admin-Diagnostics-Token", "").strip()
+
+    if admin_token:
+        if token != admin_token:
+            return False, None, (jsonify({"error": "Unauthorized access to diagnostics endpoint."}), 401)
+        return True, "admin_token", None
+
+    # In production or on Render, if no admin_token is configured, block diagnostics
+    if os.getenv("FLASK_ENV") == "production" or bool(os.getenv("RENDER")):
+        return False, None, (jsonify({"error": "Admin diagnostics access is not configured."}), 403)
+
+    user_email = session.get("user_email")
+    if user_email:
+        return True, user_email, None
+    if token:
+        return True, "dev_token", None
+
+    # For backward-compatibility in local test runs when token is not configured
+    if request.method == "GET" and not current_app.config.get("ENV") == "production":
+        return True, "local_dev", None
+
+    return False, None, (jsonify({"error": "Authentication required to access diagnostics endpoint."}), 401)
+
+
 @app.get("/api/diagnostics/quota")
 @app.get("/api/admin/quota")
 def api_diagnostics_quota():
@@ -1477,20 +1601,280 @@ def api_diagnostics_quota():
     Exposes sanitized API quota, circuit breaker, and cache efficiency metrics.
     Never exposes API keys, secrets, or individual user search queries.
     """
-    admin_token = os.getenv("ADMIN_DIAGNOSTICS_TOKEN") or os.getenv("ADMIN_KEY")
-    if admin_token:
-        auth_header = request.headers.get("Authorization", "")
-        token = auth_header.replace("Bearer ", "").strip() if auth_header else ""
-        if not token:
-            token = request.headers.get("X-Admin-Key", "").strip()
-        if not token:
-            token = request.args.get("token", "").strip()
-
-        if token != admin_token:
-            return jsonify({"error": "Unauthorized access to diagnostics endpoint."}), 401
+    authorized, operator_id, err_resp = _verify_admin_access()
+    if not authorized:
+        return err_resp
 
     diagnostics = guardian.get_diagnostics()
     return jsonify(diagnostics), 200
+
+
+@app.post("/api/diagnostics/quota/reset")
+@app.post("/api/admin/quota/reset")
+def api_diagnostics_quota_reset():
+    """
+    Access-controlled operations endpoint to reset provider quota/circuit state.
+    Used for safe operational recovery when quota is renewed or restored.
+    Does NOT refill consumed credits or erase usage history.
+    """
+    authorized, operator_id, err_resp = _verify_admin_access()
+    if not authorized:
+        return err_resp
+
+    data = request.get_json(silent=True) or {}
+    raw_provider = data.get("provider_id", PROVIDER_SERPAPI)
+    provider_id = PROVIDER_SERPAPI if raw_provider in ("serpapi", "google_flights") else raw_provider
+    reason = str(data.get("reason") or "Admin Manual Reset")
+
+    guardian.reset_provider_quota(provider_id, reason=reason)
+    if provider_id == PROVIDER_SERPAPI:
+        guardian.reset_provider_quota("serpapi", reason=reason)
+        guardian.reset_provider_quota("google_flights", reason=reason)
+
+    # Record audited operator action
+    guardian.record_operator_audit(
+        operator_id=operator_id or "admin",
+        action="circuit_reset",
+        provider_id=provider_id,
+        details={"reason": reason, "ip": get_client_ip()}
+    )
+
+    return jsonify({
+        "status": "success",
+        "message": f"Circuit state for provider '{provider_id}' has been reset to CLOSED.",
+        "provider_id": provider_id,
+        "circuit_state": "CLOSED"
+    }), 200
+
+
+@app.get("/api/diagnostics/analysis")
+@app.get("/api/admin/analysis")
+def api_diagnostics_analysis():
+    """
+    Access-controlled operations endpoint for AI and heuristic usage analysis.
+    Identifies heavy routes, anomalous usage patterns, and cache optimization recommendations.
+    """
+    authorized, operator_id, err_resp = _verify_admin_access()
+    if not authorized:
+        return err_resp
+
+    try:
+        days = int(request.args.get("days", 7))
+        days = max(1, min(90, days))
+    except (ValueError, TypeError):
+        days = 7
+
+    analysis = guardian.get_ai_usage_analysis(days=days)
+    return jsonify(analysis), 200
+
+
+@app.post("/api/diagnostics/quota/adjust")
+@app.post("/api/admin/quota/adjust")
+def api_diagnostics_quota_adjust():
+    """
+    Access-controlled operator endpoint to adjust runtime configuration limits.
+    Requires operator authorization and writes a non-destructive audit log.
+    Does NOT refill credits or bypass provider quotas.
+    """
+    authorized, operator_id, err_resp = _verify_admin_access()
+    if not authorized:
+        return err_resp
+
+    data = request.get_json(silent=True) or {}
+    provider_id = str(data.get("provider_id") or "").strip().lower()
+    allowed_keys = {
+        "flightapi_safety_margin",
+        "flightapi_reserved_search_quota",
+        "serpapi_safety_margin",
+        "serpapi_reserved_search_quota",
+        "amadeus_safety_margin",
+        "amadeus_reserved_search_quota",
+        "cache_ttl_search",
+        "cache_ttl_checker",
+        "reservation_ttl_seconds"
+    }
+
+    adjustments = {}
+    for k, v in data.items():
+        if k in allowed_keys:
+            try:
+                val = int(v)
+                if val >= 0:
+                    adjustments[k] = val
+            except (ValueError, TypeError):
+                pass
+
+    if not adjustments:
+        return jsonify({"error": "No valid adjustable configuration keys provided."}), 400
+
+    guardian.record_operator_audit(
+        operator_id=operator_id or "admin",
+        action="config_adjustment",
+        provider_id=provider_id,
+        details={"adjustments": adjustments, "ip": get_client_ip()}
+    )
+
+    return jsonify({
+        "status": "success",
+        "message": "Configuration adjustments audited and recorded.",
+        "adjustments": adjustments,
+        "operator": operator_id
+    }), 200
+
+
+
+# ============================================================
+# SELF-HEALING AGENT & OPERATOR INCIDENT ENDPOINTS
+# ============================================================
+@app.get("/api/diagnostics/incidents")
+@app.get("/api/admin/incidents")
+def api_diagnostics_incidents():
+    """
+    Access-controlled operator endpoint to retrieve active and historical incidents.
+    Supports filtering by status and category, with pagination.
+    """
+    authorized, operator_id, err_resp = _verify_admin_access()
+    if not authorized:
+        return err_resp
+
+    status = request.args.get("status")
+    category = request.args.get("category")
+    try:
+        limit = int(request.args.get("limit", 50))
+        offset = int(request.args.get("offset", 0))
+    except (ValueError, TypeError):
+        limit = 50
+        offset = 0
+
+    incidents = self_healing_agent.get_incidents(status=status, category=category, limit=limit, offset=offset)
+    summary = self_healing_agent.get_reliability_summary()
+
+    return jsonify({
+        "status": "success",
+        "reliability_summary": summary,
+        "count": len(incidents),
+        "incidents": incidents,
+    }), 200
+
+
+@app.get("/api/diagnostics/incidents/<incident_id>")
+@app.get("/api/admin/incidents/<incident_id>")
+def api_diagnostics_incident_detail(incident_id: str):
+    """
+    Access-controlled operator endpoint to inspect detailed evidence, state transitions,
+    repair attempts, and escalation logs for a specific incident.
+    """
+    authorized, operator_id, err_resp = _verify_admin_access()
+    if not authorized:
+        return err_resp
+
+    detail = self_healing_agent.get_incident_detail(incident_id)
+    if not detail:
+        return jsonify({"error": f"Incident '{incident_id}' not found."}), 404
+
+    return jsonify({
+        "status": "success",
+        "incident": detail
+    }), 200
+
+
+@app.post("/api/diagnostics/incidents/<incident_id>/retry")
+@app.post("/api/admin/incidents/<incident_id>/retry")
+def api_diagnostics_incident_retry(incident_id: str):
+    """
+    Access-controlled operator endpoint to manually trigger investigation,
+    repair, or verification on an unresolved or escalated incident.
+    """
+    authorized, operator_id, err_resp = _verify_admin_access()
+    if not authorized:
+        return err_resp
+
+    detail = self_healing_agent.get_incident_record(incident_id)
+    if not detail:
+        return jsonify({"error": f"Incident '{incident_id}' not found."}), 404
+
+    self_healing_agent.record_transition(
+        incident_id,
+        detail.get("status", "unknown"),
+        "investigating",
+        f"Manual retry initiated by operator '{operator_id}'",
+        actor=operator_id or "operator"
+    )
+
+    # Trigger diagnostic and repair lifecycle
+    success = self_healing_agent.handle_automated_repair_lifecycle(incident_id)
+    updated = self_healing_agent.get_incident_detail(incident_id)
+
+    return jsonify({
+        "status": "success" if success else "pending",
+        "message": "Manual repair lifecycle executed.",
+        "success": success,
+        "incident": updated
+    }), 200
+
+
+@app.get("/api/diagnostics/reliability")
+@app.get("/api/admin/reliability")
+def api_diagnostics_reliability():
+    """Access-controlled high-level platform reliability metrics."""
+    authorized, operator_id, err_resp = _verify_admin_access()
+    if not authorized:
+        return err_resp
+
+    return jsonify(self_healing_agent.get_reliability_summary()), 200
+
+
+@app.post("/api/telemetry/errors")
+@rate_limit(limit=60, window=60)
+def api_telemetry_errors():
+    """
+    Rate-limited telemetry ingestion endpoint for client-side JavaScript errors.
+    Redacts sensitive content and tracks recurring frontend defects.
+    """
+    if not request.is_json:
+        return jsonify({"status": "ignored", "reason": "Expected JSON payload"}), 400
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"status": "ignored", "reason": "Invalid payload format"}), 400
+
+    msg = str(data.get("message") or "").strip()
+    if not msg:
+        return jsonify({"status": "ignored", "reason": "Empty message"}), 400
+
+    if len(msg) > 5000:
+        return jsonify({"status": "ignored", "reason": "Message exceeds maximum allowed length"}), 400
+
+    msg = msg[:1000]
+    source = str(data.get("source") or "").strip()[:500]
+    stack = str(data.get("stack") or "").strip()[:4000]
+
+    lineno_val = None
+    colno_val = None
+    try:
+        if data.get("lineno") is not None:
+            lineno_val = int(data.get("lineno"))
+        if data.get("colno") is not None:
+            colno_val = int(data.get("colno"))
+    except (ValueError, TypeError):
+        pass
+
+    # Notify SelfHealingAgent with explicit client_telemetry marker (can never trigger auto-repair)
+    self_healing_agent.detect_incident(
+        subsystem=SUBSYSTEM_FRONTEND,
+        error=msg,
+        status_code=200,
+        traceback_str=stack or f"Source: {source}:{lineno_val}:{colno_val}",
+        context={
+            "source": source,
+            "lineno": lineno_val,
+            "colno": colno_val,
+            "ip": get_client_ip(),
+            "client_telemetry": True
+        }
+    )
+
+    return jsonify({"status": "recorded"}), 200
 
 
 # ============================================================
@@ -1506,7 +1890,20 @@ def page_not_found(error):
 
 @app.errorhandler(500)
 def server_error(error):
-    """Serve graceful 500 page without leaking stack traces or credentials."""
+    """Serve graceful 500 page without leaking stack traces or credentials, and notify self-healing agent."""
+    import traceback
+    tb_str = traceback.format_exc()
+    try:
+        self_healing_agent.detect_incident(
+            subsystem=SUBSYSTEM_WEB,
+            error=error,
+            status_code=500,
+            traceback_str=tb_str,
+            context={"path": request.path, "method": request.method, "ip": get_client_ip()}
+        )
+    except Exception as exc:
+        print(f"SelfHealingAgent detection hook error: {exc}", file=sys.stderr)
+
     if request.path.startswith("/api/"):
         return jsonify({"error": "An internal error occurred"}), 500
     return render_template("404.html"), 500

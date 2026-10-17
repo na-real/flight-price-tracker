@@ -11,6 +11,10 @@ const htmlContent = fs.readFileSync(htmlPath, 'utf8');
 
 assert(htmlContent.includes('id="departure"'), 'Must have origin field #departure');
 assert(htmlContent.includes('id="arrival"'), 'Must have destination field #arrival');
+assert(htmlContent.includes('placeholder="Enter origin city or airport"'), 'Must have clean, neutral origin placeholder');
+assert(htmlContent.includes('placeholder="Enter destination city or airport"'), 'Must have clean, neutral destination placeholder');
+assert(!htmlContent.includes('e.g. London Heathrow'), 'Must not contain example airport London Heathrow');
+assert(!htmlContent.includes('e.g. Kansai'), 'Must not contain example airport Kansai');
 assert(htmlContent.includes('id="swapAirports"'), 'Must have swap button #swapAirports');
 assert(htmlContent.includes('id="departureSuggestions"'), 'Must have #departureSuggestions');
 assert(htmlContent.includes('id="arrivalSuggestions"'), 'Must have #arrivalSuggestions');
@@ -20,7 +24,7 @@ assert(htmlContent.includes('id="selectedFlightSummaryCard"'), 'Must have #selec
 assert(htmlContent.includes('id="exactFlightOffersContainer"'), 'Must have #exactFlightOffersContainer');
 assert(htmlContent.includes('id="btnBackToResults"'), 'Must have #btnBackToResults');
 
-console.log('✓ HTML elements verification passed');
+console.log('✓ HTML elements & clean placeholders verification passed');
 
 // 2. Mock DOM Elements to test swap mechanics
 function createMockElement(id, tagName = 'div') {

@@ -24,3 +24,8 @@ ENV/
 *.exe
 *.log
 .DS_Store
+
+# Local artifacts & editor configurations
+artifacts_visual_inspection/
+.cursor/
+.cursorrules

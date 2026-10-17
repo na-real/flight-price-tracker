@@ -51,17 +51,17 @@
             <form id="newTrackRouteForm" autocomplete="off" onsubmit="return false;">
                 <div class="form-group">
                     <label for="trackOrigin" class="form-label">ORIGIN AIRPORT (IATA)</label>
-                    <input type="text" id="trackOrigin" class="form-input font-mono" placeholder="DEL" maxlength="3" required style="text-transform: uppercase;">
+                    <input type="text" id="trackOrigin" class="form-input font-mono" placeholder="Enter origin city or airport" required style="text-transform: uppercase;">
                 </div>
 
                 <div class="form-group">
                     <label for="trackDest" class="form-label">DESTINATION AIRPORT (IATA)</label>
-                    <input type="text" id="trackDest" class="form-input font-mono" placeholder="BOM" maxlength="3" required style="text-transform: uppercase;">
+                    <input type="text" id="trackDest" class="form-input font-mono" placeholder="Enter destination city or airport" required style="text-transform: uppercase;">
                 </div>
 
                 <div class="form-group">
                     <label for="trackOutboundDate" class="form-label">DEPARTURE DATE</label>
-                    <input type="date" id="trackOutboundDate" class="form-input font-mono" required>
+                    <input type="date" id="trackOutboundDate" class="form-input font-mono" placeholder="Select departure date" required>
                 </div>
 
                 <div class="form-group">
@@ -140,14 +140,6 @@
 {% block extra_scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    // Set default outbound date 14 days out
-    const dateInput = document.getElementById('trackOutboundDate');
-    if (dateInput && !dateInput.value) {
-        const d = new Date();
-        d.setDate(d.getDate() + 14);
-        dateInput.value = d.toISOString().split('T')[0];
-    }
-
     // Load radar background monitor status
     fetch('/api/radar/status')
         .then(r => r.json())

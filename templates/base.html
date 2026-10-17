@@ -56,6 +56,7 @@
 
     <!-- PWA Web App Manifest -->
     <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="color-scheme" content="dark light">
     <meta name="theme-color" content="#04060b">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -65,8 +66,9 @@
     <script>
         (function() {
             try {
+                var urlTheme = new URLSearchParams(window.location.search).get('theme');
                 var p = JSON.parse(localStorage.getItem('skytracker_appearance_prefs') || '{}');
-                var savedTheme = p.theme || localStorage.getItem('skytrack_theme');
+                var savedTheme = urlTheme || p.theme || localStorage.getItem('skytrack_theme');
                 if (savedTheme) {
                     document.documentElement.setAttribute('data-theme', savedTheme);
                 }
@@ -480,11 +482,11 @@
     </div>
 
     <!-- JAVASCRIPT MODULES -->
-    <script src="/static/scene3d.js"></script>
-    <script src="/static/atmosphere.js"></script>
-    <script src="/static/backdrops.js"></script>
-    <script src="/static/appearance.js"></script>
-    <script src="/static/app.js"></script>
+    <script src="/static/scene3d.js?v={{ asset_version }}"></script>
+    <script src="/static/atmosphere.js?v={{ asset_version }}"></script>
+    <script src="/static/backdrops.js?v={{ asset_version }}"></script>
+    <script src="/static/appearance.js?v={{ asset_version }}"></script>
+    <script src="/static/app.js?v={{ asset_version }}"></script>
     {% block extra_scripts %}{% endblock %}
 </body>
 
